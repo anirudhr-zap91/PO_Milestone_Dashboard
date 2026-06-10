@@ -24,7 +24,7 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # Replace with your actual Google Sheet ID
-SHEET_ID = "PASTE_SHEET_ID_HERE"
+SHEET_ID = "1Wyw9IonVmLpiL2yoiVe2bSa9IgLhSCcO_h4Y_2gSgHU"
 
 spreadsheet = client.open_by_key(SHEET_ID)
 
