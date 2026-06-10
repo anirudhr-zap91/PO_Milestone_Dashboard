@@ -30,7 +30,8 @@ spreadsheet = client.open_by_key(SHEET_ID)
 
 ws1 = spreadsheet.worksheet("PO List & Payment schedule")
 
-data = ws1.get_all_records()
+data = ws1.get_all_values()
+st.write(data[:20])
 
 df = pd.DataFrame(data)
 
