@@ -46,8 +46,7 @@ spreadsheet = client.open_by_key(SHEET_ID)
 st.success("Connected Successfully!")
 
 # ==================================================
-# SHEET 1
-# PO LIST & PAYMENT SCHEDULE
+# SHEET 1 : PO LIST & PAYMENT SCHEDULE
 # ==================================================
 
 ws_po = spreadsheet.worksheet(
@@ -56,11 +55,13 @@ ws_po = spreadsheet.worksheet(
 
 po_records = ws_po.get_all_values()
 
-# Header Row = Row 2
-po_headers = po_records[1]
+# Header row
+po_headers = [
+    str(col).strip()
+    for col in po_records[1]
+]
 
-# Data Row = Row 3 onwards
-# Only till row 367
+# Row 3 to Row 367
 po_data = po_records[2:367]
 
 df_po = pd.DataFrame(
@@ -71,7 +72,6 @@ df_po = pd.DataFrame(
 # Fill merged-cell blanks
 df_po = df_po.ffill()
 
-# Keep only required columns
 required_po_cols = [
     "Sr no.",
     "Package Description",
@@ -95,22 +95,23 @@ required_po_cols = [
     "Value"
 ]
 
-df_po = df_po[required_po_cols]
-
-# Remove completely blank rows
-df_po = df_po.dropna(how="all")
-
-# Remove useless trailing rows
-df_po = df_po[
-    ~(
-        (df_po["PO"] == "") &
-        (df_po["Outflow Amount"] == "")
-    )
+available_po_cols = [
+    col
+    for col in required_po_cols
+    if col in df_po.columns
 ]
 
+df_po = df_po[available_po_cols]
+
+# Remove fully blank rows
+df_po = df_po.replace("", pd.NA)
+
+df_po = df_po.dropna(
+    how="all"
+)
+
 # ==================================================
-# SHEET 2
-# PO TO BE ISSUED
+# SHEET 2 : PO TO BE ISSUED
 # ==================================================
 
 ws_plan = spreadsheet.worksheet(
@@ -119,11 +120,12 @@ ws_plan = spreadsheet.worksheet(
 
 plan_records = ws_plan.get_all_values()
 
-# Header Row = Row 2
-plan_headers = plan_records[1]
+plan_headers = [
+    str(col).strip()
+    for col in plan_records[1]
+]
 
-# Data Row = Row 3 onwards
-# Only till row 67
+# Row 3 to Row 67
 plan_data = plan_records[2:67]
 
 df_plan = pd.DataFrame(
@@ -142,65 +144,108 @@ required_plan_cols = [
     "Total Value"
 ]
 
-df_plan = df_plan[required_plan_cols]
+available_plan_cols = [
+    col
+    for col in required_plan_cols
+    if col in df_plan.columns
+]
 
-df_plan = df_plan.dropna(how="all")
+df_plan = df_plan[
+    available_plan_cols
+]
+
+df_plan = df_plan.replace(
+    "",
+    pd.NA
+)
+
+df_plan = df_plan.dropna(
+    how="all"
+)
 
 # ==================================================
-# DISPLAY
+# DEBUG INFO
+# ==================================================
+
+st.header("Debug Information")
+
+col1, col2 = st.columns(2)
+
+with col1:
+
+    st.subheader(
+        "PO Sheet"
+    )
+
+    st.write(
+        "Shape:",
+        df_po.shape
+    )
+
+    st.write(
+        "Columns Found:"
+    )
+
+    st.write(
+        list(df_po.columns)
+    )
+
+with col2:
+
+    st.subheader(
+        "Plan Sheet"
+    )
+
+    st.write(
+        "Shape:",
+        df_plan.shape
+    )
+
+    st.write(
+        "Columns Found:"
+    )
+
+    st.write(
+        list(df_plan.columns)
+    )
+
+# ==================================================
+# DISPLAY DATA
 # ==================================================
 
 tab1, tab2 = st.tabs(
     [
-        "PO List & Payment Schedule",
-        "PO To Be Issued"
+        "PO Data",
+        "Planned Data"
     ]
 )
 
 with tab1:
 
-    st.subheader("Cleaned PO Data")
+    st.subheader(
+        "PO List & Payment Schedule"
+    )
 
     st.write(
-        f"Rows: {len(df_po)} | Columns: {len(df_po.columns)}"
+        f"Rows : {len(df_po)}"
     )
 
     st.dataframe(
-        df_po,
+        df_po.head(50),
         use_container_width=True
     )
 
 with tab2:
 
-    st.subheader("Cleaned Planned Data")
+    st.subheader(
+        "PO To Be Issued"
+    )
 
     st.write(
-        f"Rows: {len(df_plan)} | Columns: {len(df_plan.columns)}"
+        f"Rows : {len(df_plan)}"
     )
 
     st.dataframe(
-        df_plan,
+        df_plan.head(50),
         use_container_width=True
-    )
-
-# ==================================================
-# DEBUG
-# ==================================================
-
-st.divider()
-
-st.subheader("Dataset Summary")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.metric(
-        "PO Rows",
-        len(df_po)
-    )
-
-with col2:
-    st.metric(
-        "Plan Rows",
-        len(df_plan)
     )
