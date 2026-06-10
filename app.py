@@ -34,6 +34,7 @@ SHEET_ID = "1Wyw9IonVmLpiL2yoiVe2bSa9IgLhSCcO_h4Y_2gSgHU"
 
 spreadsheet = client.open_by_key(SHEET_ID)
 
+
 # -----------------------------
 # Load Sheet 1
 # -----------------------------
@@ -43,30 +44,27 @@ ws_po = spreadsheet.worksheet(
 
 po_records = ws_po.get_all_values()
 
+# Header row = Row 2
+po_headers = po_records[1]
+
+# Data starts from Row 3
+po_data = po_records[2:]
+
+df_po = pd.DataFrame(
+    po_data,
+    columns=po_headers
+)
+
+# Fill merged-cell blanks
+df_po = df_po.ffill()
+
 st.success("Connected Successfully!")
 
-st.header("Sheet 1 : PO List & Payment schedule")
+st.header("Cleaned PO Data")
 
-st.write("Rows Loaded:", len(po_records))
+st.write("Rows Loaded:", len(df_po))
 
-# Display first 20 raw rows
-st.subheader("Raw Data Preview")
-st.dataframe(pd.DataFrame(po_records[:20]))
-
-# Display detected headers
-if len(po_records) > 1:
-
-    po_headers = po_records[1]
-
-    st.subheader("Detected Headers")
-
-    header_df = pd.DataFrame({
-        "Column Number": list(range(len(po_headers))),
-        "Header Name": po_headers
-    })
-
-    st.dataframe(header_df)
-
+st.dataframe(df_po.head(20))
 # -----------------------------
 # Load Sheet 2
 # -----------------------------
@@ -76,25 +74,22 @@ ws_plan = spreadsheet.worksheet(
 
 plan_records = ws_plan.get_all_values()
 
-st.header("Sheet 2 : PO to be issued")
+# Header row = Row 2
+plan_headers = plan_records[1]
 
-st.write("Rows Loaded:", len(plan_records))
+# Data starts from Row 3
+plan_data = plan_records[2:]
 
-# Display first 20 rows
-st.subheader("Raw Data Preview")
-
-st.dataframe(
-    pd.DataFrame(plan_records[:20])
+df_plan = pd.DataFrame(
+    plan_data,
+    columns=plan_headers
 )
 
-# Display header row candidates
-if len(plan_records) > 0:
+st.header("Cleaned Planned PO Data")
 
-    st.subheader("First 10 Rows")
+st.write("Rows Loaded:", len(df_plan))
 
-    for i in range(min(10, len(plan_records))):
-        st.write(f"Row {i+1}")
-        st.write(plan_records[i])
+st.dataframe(df_plan.head(20))
 
 # -----------------------------
 # Debug Information
