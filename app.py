@@ -111,6 +111,35 @@ df_po = df_po.dropna(
 )
 
 # ==================================================
+# NUMERIC CONVERSION
+# ==================================================
+
+def clean_amount(series):
+    return pd.to_numeric(
+        series.astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("₹", "", regex=False)
+        .str.strip(),
+        errors="coerce"
+    )
+
+df_po["Outflow Amount"] = clean_amount(
+    df_po["Outflow Amount"]
+)
+
+df_po["PO Value (incld GST)"] = clean_amount(
+    df_po["PO Value (incld GST)"]
+)
+
+df_po["Total Value"] = clean_amount(
+    df_po["Total Value"]
+)
+
+df_po["Value"] = clean_amount(
+    df_po["Value"]
+)
+
+# ==================================================
 # SHEET 2 : PO TO BE ISSUED
 # ==================================================
 
@@ -162,7 +191,70 @@ df_plan = df_plan.replace(
 df_plan = df_plan.dropna(
     how="all"
 )
+df_plan["Amount"] = clean_amount(
+    df_plan["Amount"]
+)
 
+df_plan["Total Value"] = clean_amount(
+    df_plan["Total Value"]
+)
+
+df_plan["Estimates/back quotes value"] = clean_amount(
+    df_plan["Estimates/back quotes value"]
+)
+
+# ==================================================
+# KPI CALCULATIONS
+# ==================================================
+
+total_po_value = df_po["Value"].max()
+
+completed_payment = (
+    df_po[
+        df_po["Payment Status"] == "Completed"
+    ]["Outflow Amount"].sum()
+)
+
+pending_payment = (
+    df_po[
+        df_po["Payment Status"] != "Completed"
+    ]["Outflow Amount"].sum()
+)
+
+planned_value = (
+    df_plan["Amount"].sum()
+)
+# ==================================================
+# KPI DISPLAY
+# ==================================================
+
+st.header("Dashboard Summary")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Total PO Value",
+        f"₹ {total_po_value:,.0f}"
+    )
+
+with col2:
+    st.metric(
+        "Completed Payments",
+        f"₹ {completed_payment:,.0f}"
+    )
+
+with col3:
+    st.metric(
+        "Pending Payments",
+        f"₹ {pending_payment:,.0f}"
+    )
+
+with col4:
+    st.metric(
+        "Planned Value",
+        f"₹ {planned_value:,.0f}"
+    )
 # ==================================================
 # DEBUG INFO
 # ==================================================
