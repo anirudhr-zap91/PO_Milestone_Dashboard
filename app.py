@@ -4,9 +4,10 @@ import gspread
 import json
 from google.oauth2.service_account import Credentials
 
-# --------------------------------------------------
+# ==================================================
 # PAGE CONFIG
-# --------------------------------------------------
+# ==================================================
+
 st.set_page_config(
     page_title="PO Dashboard",
     layout="wide"
@@ -14,9 +15,10 @@ st.set_page_config(
 
 st.title("PO Dashboard")
 
-# --------------------------------------------------
+# ==================================================
 # GOOGLE AUTH
-# --------------------------------------------------
+# ==================================================
+
 creds_dict = json.loads(
     st.secrets["google_credentials"]
 )
@@ -33,9 +35,10 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-# --------------------------------------------------
-# GOOGLE SHEET
-# --------------------------------------------------
+# ==================================================
+# OPEN SHEET
+# ==================================================
+
 SHEET_ID = "1Wyw9IonVmLpiL2yoiVe2bSa9IgLhSCcO_h4Y_2gSgHU"
 
 spreadsheet = client.open_by_key(SHEET_ID)
@@ -43,7 +46,8 @@ spreadsheet = client.open_by_key(SHEET_ID)
 st.success("Connected Successfully!")
 
 # ==================================================
-# SHEET 1 : PO LIST & PAYMENT SCHEDULE
+# SHEET 1
+# PO LIST & PAYMENT SCHEDULE
 # ==================================================
 
 ws_po = spreadsheet.worksheet(
@@ -52,65 +56,61 @@ ws_po = spreadsheet.worksheet(
 
 po_records = ws_po.get_all_values()
 
-st.header("PO List & Payment Schedule")
-
-st.write("Raw Rows Loaded:", len(po_records))
-
-# Header row = Row 2
+# Header Row = Row 2
 po_headers = po_records[1]
 
-# Only load till row 367
+# Data Row = Row 3 onwards
+# Only till row 367
 po_data = po_records[2:367]
-
-# Clean headers
-clean_headers = []
-
-for i, col in enumerate(po_headers):
-
-    col = str(col).strip()
-
-    if col == "":
-        col = f"Unnamed_{i}"
-
-    clean_headers.append(col)
 
 df_po = pd.DataFrame(
     po_data,
-    columns=clean_headers
+    columns=po_headers
 )
 
 # Fill merged-cell blanks
 df_po = df_po.ffill()
 
-# --------------------------------------------------
-# DIAGNOSTICS
-# --------------------------------------------------
+# Keep only required columns
+required_po_cols = [
+    "Sr no.",
+    "Package Description",
+    "SPOC",
+    "Vendor",
+    "PO",
+    "PO Date",
+    "PO Value (excld GST)",
+    "PO Value (incld GST)",
+    "Payment Terms",
+    "Outflow Amount",
+    "Outflow Month",
+    "Outflow Week",
+    "Payment Type",
+    "Payment Status",
+    "Total %",
+    "Total Value",
+    "Currency",
+    "Head",
+    "Sub Head",
+    "Value"
+]
 
-st.subheader("PO Sheet Shape")
+df_po = df_po[required_po_cols]
 
-st.write(df_po.shape)
+# Remove completely blank rows
+df_po = df_po.dropna(how="all")
 
-st.subheader("PO Sheet Columns")
-
-for idx, col in enumerate(df_po.columns):
-    st.write(idx, ":", col)
-
-st.subheader("First Record")
-
-try:
-    st.json(df_po.iloc[0].to_dict())
-except:
-    st.write(df_po.iloc[0].to_dict())
-
-st.subheader("Last Record")
-
-try:
-    st.json(df_po.iloc[-1].to_dict())
-except:
-    st.write(df_po.iloc[-1].to_dict())
+# Remove useless trailing rows
+df_po = df_po[
+    ~(
+        (df_po["PO"] == "") &
+        (df_po["Outflow Amount"] == "")
+    )
+]
 
 # ==================================================
-# SHEET 2 : PO TO BE ISSUED
+# SHEET 2
+# PO TO BE ISSUED
 # ==================================================
 
 ws_plan = spreadsheet.worksheet(
@@ -119,52 +119,88 @@ ws_plan = spreadsheet.worksheet(
 
 plan_records = ws_plan.get_all_values()
 
-st.header("PO To Be Issued")
-
-st.write("Raw Rows Loaded:", len(plan_records))
-
-# Header row = Row 2
+# Header Row = Row 2
 plan_headers = plan_records[1]
 
-# Data starts Row 3
-plan_data = plan_records[2:]
-
-# Clean headers
-clean_plan_headers = []
-
-for i, col in enumerate(plan_headers):
-
-    col = str(col).strip()
-
-    if col == "":
-        col = f"Unnamed_{i}"
-
-    clean_plan_headers.append(col)
+# Data Row = Row 3 onwards
+# Only till row 67
+plan_data = plan_records[2:67]
 
 df_plan = pd.DataFrame(
     plan_data,
-    columns=clean_plan_headers
+    columns=plan_headers
 )
 
-st.subheader("Plan Sheet Shape")
+required_plan_cols = [
+    "Category",
+    "Sub-Category",
+    "Estimates/back quotes value",
+    "% Breakup",
+    "Amount",
+    "Month Outflow",
+    "Total %",
+    "Total Value"
+]
 
-st.write(df_plan.shape)
+df_plan = df_plan[required_plan_cols]
 
-st.subheader("Plan Sheet Columns")
+df_plan = df_plan.dropna(how="all")
 
-for idx, col in enumerate(df_plan.columns):
-    st.write(idx, ":", col)
+# ==================================================
+# DISPLAY
+# ==================================================
 
-st.subheader("First Record")
+tab1, tab2 = st.tabs(
+    [
+        "PO List & Payment Schedule",
+        "PO To Be Issued"
+    ]
+)
 
-try:
-    st.json(df_plan.iloc[0].to_dict())
-except:
-    st.write(df_plan.iloc[0].to_dict())
+with tab1:
 
-st.subheader("Last Record")
+    st.subheader("Cleaned PO Data")
 
-try:
-    st.json(df_plan.iloc[-1].to_dict())
-except:
-    st.write(df_plan.iloc[-1].to_dict())
+    st.write(
+        f"Rows: {len(df_po)} | Columns: {len(df_po.columns)}"
+    )
+
+    st.dataframe(
+        df_po,
+        use_container_width=True
+    )
+
+with tab2:
+
+    st.subheader("Cleaned Planned Data")
+
+    st.write(
+        f"Rows: {len(df_plan)} | Columns: {len(df_plan.columns)}"
+    )
+
+    st.dataframe(
+        df_plan,
+        use_container_width=True
+    )
+
+# ==================================================
+# DEBUG
+# ==================================================
+
+st.divider()
+
+st.subheader("Dataset Summary")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "PO Rows",
+        len(df_po)
+    )
+
+with col2:
+    st.metric(
+        "Plan Rows",
+        len(df_plan)
+    )
