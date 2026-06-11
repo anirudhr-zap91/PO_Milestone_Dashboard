@@ -1,8 +1,10 @@
 import streamlit as st
+import plotly.express as px
 import pandas as pd
 import gspread
 import json
 from google.oauth2.service_account import Credentials
+
 
 # ==================================================
 # PAGE CONFIG
@@ -237,7 +239,7 @@ total_due_monthly.columns = [
     "Total Due"
 ]
 
-# Merge both
+# Merge
 
 payment_progress = pd.merge(
     total_due_monthly,
@@ -251,31 +253,85 @@ payment_progress["Actual Paid"] = (
     .fillna(0)
 )
 
-st.subheader("Monthly Payment Progress")
+# ==================================================
+# CLEAN MONTHS
+# ==================================================
 
-month_order = [
-    "Jan 2025","Feb 2025","Mar 2025","Apr 2025","May 2025","Jun 2025",
-    "Jul 2025","Aug 2025","Sep 2025","Oct 2025","Nov 2025","Dec 2025",
-    "Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026",
-    "Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026"
+payment_progress = payment_progress[
+    payment_progress["Month"].notna()
 ]
 
-payment_progress["Month"] = pd.Categorical(
+payment_progress = payment_progress[
+    payment_progress["Month"] != ""
+]
+
+# ==================================================
+# SORT MONTHS
+# ==================================================
+
+payment_progress["Sort_Date"] = pd.to_datetime(
     payment_progress["Month"],
-    categories=month_order,
-    ordered=True
+    format="%b %Y",
+    errors="coerce"
+)
+
+mask = payment_progress["Sort_Date"].isna()
+
+payment_progress.loc[
+    mask,
+    "Sort_Date"
+] = pd.to_datetime(
+    payment_progress.loc[
+        mask,
+        "Month"
+    ],
+    format="%B %Y",
+    errors="coerce"
 )
 
 payment_progress = payment_progress.sort_values(
-    "Month"
+    "Sort_Date"
 )
 
-chart_data = payment_progress.set_index(
-    "Month"
+# ==================================================
+# PREPARE FOR PLOTLY
+# ==================================================
+
+chart_df = payment_progress.melt(
+    id_vars=["Month"],
+    value_vars=[
+        "Actual Paid",
+        "Total Due"
+    ],
+    var_name="Type",
+    value_name="Amount"
 )
 
-st.bar_chart(
-    chart_data,
+# ==================================================
+# CHART
+# ==================================================
+
+st.subheader("Monthly Payment Progress")
+
+fig = px.bar(
+    chart_df,
+    x="Month",
+    y="Amount",
+    color="Type",
+    barmode="group",
+    title="Actual Paid vs Total Due by Month",
+    text_auto=True
+)
+
+fig.update_layout(
+    xaxis_title="Month",
+    yaxis_title="Amount (₹)",
+    height=600,
+    legend_title=""
+)
+
+st.plotly_chart(
+    fig,
     use_container_width=True
 )
 
@@ -330,90 +386,4 @@ with col4:
     st.metric(
         "Planned Value",
         f"₹ {planned_value:,.0f}"
-    )
-# ==================================================
-# DEBUG INFO
-# ==================================================
-
-st.header("Debug Information")
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    st.subheader(
-        "PO Sheet"
-    )
-
-    st.write(
-        "Shape:",
-        df_po.shape
-    )
-
-    st.write(
-        "Columns Found:"
-    )
-
-    st.write(
-        list(df_po.columns)
-    )
-
-with col2:
-
-    st.subheader(
-        "Plan Sheet"
-    )
-
-    st.write(
-        "Shape:",
-        df_plan.shape
-    )
-
-    st.write(
-        "Columns Found:"
-    )
-
-    st.write(
-        list(df_plan.columns)
-    )
-
-# ==================================================
-# DISPLAY DATA
-# ==================================================
-
-tab1, tab2 = st.tabs(
-    [
-        "PO Data",
-        "Planned Data"
-    ]
-)
-
-with tab1:
-
-    st.subheader(
-        "PO List & Payment Schedule"
-    )
-
-    st.write(
-        f"Rows : {len(df_po)}"
-    )
-
-    st.dataframe(
-        df_po.head(50),
-        use_container_width=True
-    )
-
-with tab2:
-
-    st.subheader(
-        "PO To Be Issued"
-    )
-
-    st.write(
-        f"Rows : {len(df_plan)}"
-    )
-
-    st.dataframe(
-        df_plan.head(50),
-        use_container_width=True
     )
