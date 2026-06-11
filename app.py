@@ -204,6 +204,156 @@ df_plan["Total Value"] = clean_amount(
 df_plan["Estimates/back quotes value"] = clean_amount(
     df_plan["Estimates/back quotes value"]
 )
+# ==================================================
+# NEXT 3 MONTH PO REQUIREMENT
+# ==================================================
+
+st.header("Upcoming PO Requirement")
+
+# Convert Month Outflow to Date
+
+df_plan["Month_Date"] = pd.to_datetime(
+    df_plan["Month Outflow"],
+    format="%B %Y",
+    errors="coerce"
+)
+
+# Remove blank months
+
+future_plan = df_plan[
+    df_plan["Month_Date"].notna()
+].copy()
+
+# Sort by date
+
+future_plan = future_plan.sort_values(
+    "Month_Date"
+)
+
+# Current Month
+
+today = pd.Timestamp.today()
+
+current_month = pd.Timestamp(
+    year=today.year,
+    month=today.month,
+    day=1
+)
+
+# Current + next 2 months
+
+end_month = current_month + pd.DateOffset(
+    months=2
+)
+
+# Filter next 3 months
+
+next_3_month_df = future_plan[
+    (future_plan["Month_Date"] >= current_month)
+    &
+    (future_plan["Month_Date"] <= end_month)
+].copy()
+
+# ==================================================
+# TOTAL REQUIREMENT KPI
+# ==================================================
+
+next_3_month_total = (
+    next_3_month_df["Amount"].sum()
+)
+
+st.metric(
+    "Next 3 Month PO Requirement",
+    f"₹ {next_3_month_total:.2f} Cr"
+)
+
+# ==================================================
+# MONTH BREAKDOWN
+# ==================================================
+
+st.subheader("Month-wise Requirement")
+
+monthly_breakdown = (
+    next_3_month_df
+    .groupby("Month Outflow")["Amount"]
+    .sum()
+    .reset_index()
+)
+
+st.dataframe(
+    monthly_breakdown,
+    use_container_width=True
+)
+
+# ==================================================
+# CATEGORY BREAKDOWN
+# ==================================================
+
+st.subheader("Category Breakdown")
+
+category_breakdown = (
+    next_3_month_df
+    .groupby("Category")["Amount"]
+    .sum()
+    .reset_index()
+)
+
+category_breakdown = (
+    category_breakdown
+    .sort_values(
+        "Amount",
+        ascending=False
+    )
+)
+
+st.dataframe(
+    category_breakdown,
+    use_container_width=True
+)
+
+# ==================================================
+# CATEGORY CHART
+# ==================================================
+
+fig = px.bar(
+    category_breakdown,
+    x="Category",
+    y="Amount",
+    text_auto=True,
+    title="Next 3 Month Requirement by Category"
+)
+
+fig.update_layout(
+    yaxis_title="Amount (Cr)",
+    height=500
+)
+
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
+
+# ==================================================
+# MONTHLY REQUIREMENT CHART
+# ==================================================
+
+fig2 = px.bar(
+    monthly_breakdown,
+    x="Month Outflow",
+    y="Amount",
+    text_auto=True,
+    title="Next 3 Month Requirement by Month"
+)
+
+fig2.update_layout(
+    yaxis_title="Amount (Cr)",
+    height=500
+)
+
+st.plotly_chart(
+    fig2,
+    use_container_width=True
+)
 
 # ==================================================
 # MONTHLY PAYMENT PROGRESS
