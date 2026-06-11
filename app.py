@@ -204,43 +204,57 @@ df_plan["Estimates/back quotes value"] = clean_amount(
 )
 
 # ==================================================
-# MONTHLY ACTUAL CASHFLOW
+# MONTHLY PAYMENT PROGRESS
 # ==================================================
 
-actual_monthly = (
+# Actual Paid (Completed only)
+
+actual_paid_monthly = (
     df_po[
         df_po["Payment Status"] == "Completed"
     ]
-    .groupby("Outflow Month", dropna=False)["Outflow Amount"]
+    .groupby("Outflow Month")["Outflow Amount"]
     .sum()
     .reset_index()
 )
 
-# Convert month text to datetime
-actual_monthly["Month_Date"] = pd.to_datetime(
-    actual_monthly["Outflow Month"],
-    format="%b %Y",
-    errors="coerce"
+actual_paid_monthly.columns = [
+    "Month",
+    "Actual Paid"
+]
+
+# Total Due (All payments regardless of status)
+
+total_due_monthly = (
+    df_po
+    .groupby("Outflow Month")["Outflow Amount"]
+    .sum()
+    .reset_index()
 )
 
-# Handle full month names like March 2025
-mask = actual_monthly["Month_Date"].isna()
+total_due_monthly.columns = [
+    "Month",
+    "Total Due"
+]
 
-actual_monthly.loc[mask, "Month_Date"] = pd.to_datetime(
-    actual_monthly.loc[mask, "Outflow Month"],
-    format="%B %Y",
-    errors="coerce"
+# Merge both
+
+payment_progress = pd.merge(
+    total_due_monthly,
+    actual_paid_monthly,
+    on="Month",
+    how="left"
 )
 
-# Sort oldest → newest
-actual_monthly = actual_monthly.sort_values(
-    "Month_Date"
+payment_progress["Actual Paid"] = (
+    payment_progress["Actual Paid"]
+    .fillna(0)
 )
 
-st.subheader("Actual Monthly Cashflow")
+st.subheader("Monthly Payment Progress")
 
 st.dataframe(
-    actual_monthly,
+    payment_progress,
     use_container_width=True
 )
 # ==================================================
