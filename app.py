@@ -210,15 +210,17 @@ df_plan["Estimates/back quotes value"] = clean_amount(
 # ==================================================
 
 # Actual Paid (Completed only)
-
 actual_paid_monthly = (
     df_po[
-        df_po["Payment Status"] == "Completed"
+        df_po["Payment Status"].isin(
+            ["Completed", "LC issued"]
+        )
     ]
     .groupby("Outflow Month")["Outflow Amount"]
     .sum()
     .reset_index()
 )
+
 
 actual_paid_monthly.columns = [
     "Month",
