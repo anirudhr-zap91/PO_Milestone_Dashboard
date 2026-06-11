@@ -204,6 +204,26 @@ df_plan["Estimates/back quotes value"] = clean_amount(
 )
 
 # ==================================================
+# MONTHLY ACTUAL CASHFLOW
+# ==================================================
+
+actual_monthly = (
+    df_po[
+        df_po["Payment Status"] == "Completed"
+    ]
+    .groupby("Outflow Month", dropna=False)["Outflow Amount"]
+    .sum()
+    .reset_index()
+)
+
+st.subheader("Actual Monthly Cashflow")
+
+st.dataframe(
+    actual_monthly,
+    use_container_width=True
+)
+
+# ==================================================
 # KPI CALCULATIONS
 # ==================================================
 
