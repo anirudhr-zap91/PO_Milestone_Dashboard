@@ -205,12 +205,12 @@ df_plan["Estimates/back quotes value"] = clean_amount(
     df_plan["Estimates/back quotes value"]
 )
 # ==================================================
-# NEXT 3 MONTH PO REQUIREMENT
+# UPCOMING PO REQUIREMENT
 # ==================================================
 
 st.header("Upcoming PO Requirement")
 
-# Convert Month Outflow to Date
+# Convert Month Outflow to date
 
 df_plan["Month_Date"] = pd.to_datetime(
     df_plan["Month Outflow"],
@@ -218,19 +218,23 @@ df_plan["Month_Date"] = pd.to_datetime(
     errors="coerce"
 )
 
-# Remove blank months
+# Only valid milestone rows
 
 future_plan = df_plan[
-    df_plan["Month_Date"].notna()
+    (df_plan["Amount"] > 0)
+    &
+    (df_plan["Month_Date"].notna())
 ].copy()
 
-# Sort by date
+# Sort by month
 
 future_plan = future_plan.sort_values(
     "Month_Date"
 )
 
-# Current Month
+# ==================================================
+# NEXT 3 MONTH FILTER
+# ==================================================
 
 today = pd.Timestamp.today()
 
@@ -240,13 +244,9 @@ current_month = pd.Timestamp(
     day=1
 )
 
-# Current + next 2 months
-
 end_month = current_month + pd.DateOffset(
     months=2
 )
-
-# Filter next 3 months
 
 next_3_month_df = future_plan[
     (future_plan["Month_Date"] >= current_month)
@@ -255,7 +255,7 @@ next_3_month_df = future_plan[
 ].copy()
 
 # ==================================================
-# TOTAL REQUIREMENT KPI
+# TOTAL REQUIREMENT
 # ==================================================
 
 next_3_month_total = (
@@ -268,7 +268,7 @@ st.metric(
 )
 
 # ==================================================
-# MONTH BREAKDOWN
+# MONTH-WISE REQUIREMENT
 # ==================================================
 
 st.subheader("Month-wise Requirement")
@@ -283,6 +283,31 @@ monthly_breakdown = (
 st.dataframe(
     monthly_breakdown,
     use_container_width=True
+)
+
+# ==================================================
+# UPCOMING PO TABLE
+# ==================================================
+
+st.subheader("Upcoming POs")
+
+upcoming_po_table = next_3_month_df[
+    [
+        "Category",
+        "Sub-Category",
+        "Amount",
+        "Month Outflow"
+    ]
+].copy()
+
+upcoming_po_table = upcoming_po_table.sort_values(
+    ["Month_Date", "Category"]
+)
+
+st.dataframe(
+    upcoming_po_table,
+    use_container_width=True,
+    hide_index=True
 )
 
 # ==================================================
@@ -308,7 +333,8 @@ category_breakdown = (
 
 st.dataframe(
     category_breakdown,
-    use_container_width=True
+    use_container_width=True,
+    hide_index=True
 )
 
 # ==================================================
@@ -319,7 +345,7 @@ fig = px.bar(
     category_breakdown,
     x="Category",
     y="Amount",
-    text_auto=True,
+    text_auto=".2f",
     title="Next 3 Month Requirement by Category"
 )
 
@@ -330,28 +356,6 @@ fig.update_layout(
 
 st.plotly_chart(
     fig,
-    use_container_width=True
-)
-
-# ==================================================
-# MONTHLY REQUIREMENT CHART
-# ==================================================
-
-fig2 = px.bar(
-    monthly_breakdown,
-    x="Month Outflow",
-    y="Amount",
-    text_auto=True,
-    title="Next 3 Month Requirement by Month"
-)
-
-fig2.update_layout(
-    yaxis_title="Amount (Cr)",
-    height=500
-)
-
-st.plotly_chart(
-    fig2,
     use_container_width=True
 )
 
