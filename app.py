@@ -216,13 +216,33 @@ actual_monthly = (
     .reset_index()
 )
 
+# Convert month text to datetime
+actual_monthly["Month_Date"] = pd.to_datetime(
+    actual_monthly["Outflow Month"],
+    format="%b %Y",
+    errors="coerce"
+)
+
+# Handle full month names like March 2025
+mask = actual_monthly["Month_Date"].isna()
+
+actual_monthly.loc[mask, "Month_Date"] = pd.to_datetime(
+    actual_monthly.loc[mask, "Outflow Month"],
+    format="%B %Y",
+    errors="coerce"
+)
+
+# Sort oldest → newest
+actual_monthly = actual_monthly.sort_values(
+    "Month_Date"
+)
+
 st.subheader("Actual Monthly Cashflow")
 
 st.dataframe(
     actual_monthly,
     use_container_width=True
 )
-
 # ==================================================
 # KPI CALCULATIONS
 # ==================================================
