@@ -253,10 +253,32 @@ payment_progress["Actual Paid"] = (
 
 st.subheader("Monthly Payment Progress")
 
-st.dataframe(
-    payment_progress,
+month_order = [
+    "Jan 2025","Feb 2025","Mar 2025","Apr 2025","May 2025","Jun 2025",
+    "Jul 2025","Aug 2025","Sep 2025","Oct 2025","Nov 2025","Dec 2025",
+    "Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026",
+    "Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026"
+]
+
+payment_progress["Month"] = pd.Categorical(
+    payment_progress["Month"],
+    categories=month_order,
+    ordered=True
+)
+
+payment_progress = payment_progress.sort_values(
+    "Month"
+)
+
+chart_data = payment_progress.set_index(
+    "Month"
+)
+
+st.bar_chart(
+    chart_data,
     use_container_width=True
 )
+
 # ==================================================
 # KPI CALCULATIONS
 # ==================================================
