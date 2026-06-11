@@ -291,18 +291,20 @@ st.dataframe(
 
 st.subheader("Upcoming POs")
 
-upcoming_po_table = next_3_month_df[
+upcoming_po_table = next_3_month_df.copy()
+
+upcoming_po_table = upcoming_po_table.sort_values(
+    ["Month_Date", "Category"]
+)
+
+upcoming_po_table = upcoming_po_table[
     [
         "Category",
         "Sub-Category",
         "Amount",
         "Month Outflow"
     ]
-].copy()
-
-upcoming_po_table = upcoming_po_table.sort_values(
-    ["Month_Date", "Category"]
-)
+]
 
 st.dataframe(
     upcoming_po_table,
