@@ -27,7 +27,7 @@ SHEET_ID = "1Wyw9IonVmLpiL2yoiVe2bSa9IgLhSCcO_h4Y_2gSgHU"
 spreadsheet = client.open_by_key(SHEET_ID)
 
 # ==================================================
-# HELPER: CLEAN NUMERIC COLUMNS
+# HELPERS
 # ==================================================
 def clean_amount(series):
     return pd.to_numeric(
@@ -38,9 +38,6 @@ def clean_amount(series):
         errors="coerce"
     )
 
-# ==================================================
-# HELPER: PARSE "MONTH YEAR" STRINGS (handles "Jun 2026" and "June 2026")
-# ==================================================
 def parse_month(series):
     parsed = pd.to_datetime(series, format="%b %Y", errors="coerce")
     mask = parsed.isna()
@@ -68,7 +65,6 @@ required_po_cols = [
 available_po_cols = [c for c in required_po_cols if c in df_po.columns]
 df_po = df_po[available_po_cols]
 
-# Forward-fill merged-cell columns (PO-level info repeated across payment rows)
 ffill_cols = [
     "Sr no.", "Package Description", "SPOC", "Vendor", "PO", "PO Date",
     "PO Value (excld GST)", "PO Value (incld GST)", "Payment Terms",
@@ -78,22 +74,19 @@ for col in ffill_cols:
     if col in df_po.columns:
         df_po[col] = df_po[col].replace("", pd.NA).ffill()
 
-# Remove fully blank rows
 df_po = df_po.replace("", pd.NA)
 df_po = df_po.dropna(how="all")
 
-# Numeric conversion
+# Numeric conversions
 df_po["Outflow Amount"] = clean_amount(df_po["Outflow Amount"])
 df_po["Value"] = clean_amount(df_po["Value"])
 
-# Convert raw ₹ to Cr (1 Cr = 1,00,00,000) to match "PO to be issued" sheet units
+# Convert raw ₹ to Cr to match plan sheet units
 df_po["Outflow Amount"] = df_po["Outflow Amount"] / 1e7
 df_po["Value"] = df_po["Value"] / 1e7
 
-# Parse Outflow Month -> datetime
 df_po["Outflow_Month_Date"] = parse_month(df_po["Outflow Month"])
 
-# Drop rows with no usable outflow amount or month
 df_po = df_po[
     df_po["Outflow Amount"].notna()
     & df_po["Outflow_Month_Date"].notna()
@@ -106,7 +99,7 @@ ws_plan = spreadsheet.worksheet("PO to be issued")
 plan_records = ws_plan.get_all_values()
 
 plan_headers = [str(c).strip() for c in plan_records[1]]
-plan_data = plan_records[2:68]   # rows 3 to 68 (covers all categories incl. PMC & Stat)
+plan_data = plan_records[2:68]
 
 df_plan = pd.DataFrame(plan_data, columns=plan_headers)
 
@@ -117,47 +110,38 @@ required_plan_cols = [
 available_plan_cols = [c for c in required_plan_cols if c in df_plan.columns]
 df_plan = df_plan[available_plan_cols]
 
-# Forward-fill merged Category / Sub-Category cells
 df_plan["Category"] = df_plan["Category"].replace("", pd.NA).ffill()
 df_plan["Sub-Category"] = df_plan["Sub-Category"].replace("", pd.NA).ffill()
 
-# Drop summary/total rows
 df_plan = df_plan[~df_plan["Category"].isin(["Subtotal", ""])]
 df_plan = df_plan[df_plan["Sub-Category"] != "Total"]
 
-# Numeric conversions
 df_plan["Amount"] = clean_amount(df_plan["Amount"])
-
-# Parse Month Outflow -> datetime
 df_plan["Month_Date"] = parse_month(df_plan["Month Outflow"])
 
-# Keep only rows with a real amount and a valid month
 df_plan = df_plan[
     (df_plan["Amount"] > 0)
     & (df_plan["Month_Date"].notna())
 ]
 
 # ==================================================
-# CURRENT + NEXT MONTH (auto-updates based on today's date)
+# CURRENT MONTH ONLY (auto-updates based on today's date)
 # ==================================================
 today = pd.Timestamp.today()
 current_month = pd.Timestamp(year=today.year, month=today.month, day=1)
-next_month = current_month + pd.DateOffset(months=1)
+current_month_label = current_month.strftime("%B %Y")
 
-target_months = [current_month, next_month]
-target_month_labels = [m.strftime("%B %Y") for m in target_months]
-
-st.header(f"PO Requirement: {target_month_labels[0]} & {target_month_labels[1]}")
+st.header(f"PO Requirement: {current_month_label}")
 
 # ==================================================
-# PLAN: FILTER TO CURRENT + NEXT MONTH
+# PLAN: FILTER TO CURRENT MONTH
 # ==================================================
-plan_window = df_plan[df_plan["Month_Date"].isin(target_months)].copy()
+plan_window = df_plan[df_plan["Month_Date"] == current_month].copy()
 
 # ==================================================
-# ACTUAL PO: FILTER TO CURRENT + NEXT MONTH
+# ACTUAL PO: FILTER TO CURRENT MONTH
 # ==================================================
-po_window = df_po[df_po["Outflow_Month_Date"].isin(target_months)].copy()
+po_window = df_po[df_po["Outflow_Month_Date"] == current_month].copy()
 
 # ==================================================
 # TOTAL PLANNED REQUIREMENT
@@ -167,12 +151,12 @@ total_actual = po_window["Outflow Amount"].sum()
 
 col1, col2 = st.columns(2)
 with col1:
-    st.metric(f"Planned Requirement ({target_month_labels[0]} + {target_month_labels[1]})", f"₹ {total_planned:.2f} Cr")
+    st.metric(f"Planned Requirement ({current_month_label})", f"₹ {total_planned:.2f} Cr")
 with col2:
-    st.metric(f"Actual PO Outflow ({target_month_labels[0]} + {target_month_labels[1]})", f"₹ {total_actual:,.0f}")
+    st.metric(f"Actual PO Outflow ({current_month_label})", f"₹ {total_actual:.2f} Cr")
 
 # ==================================================
-# PLANNED REQUIREMENT TABLE (by Category / Sub-Category / Month)
+# PLANNED REQUIREMENT TABLE (Category shown once, grouped)
 # ==================================================
 st.subheader("Planned PO Requirement (Category / Sub-Category)")
 
@@ -180,14 +164,19 @@ plan_table = (
     plan_window
     .groupby(["Category", "Sub-Category", "Month Outflow"], as_index=False)["Amount"]
     .sum()
-    .sort_values(["Month Outflow", "Category", "Sub-Category"])
+    .sort_values(["Category", "Sub-Category"])
 )
 
-st.dataframe(plan_table, use_container_width=True, hide_index=True)
+# Blank out repeated Category values so it's shown only once per group
+display_plan_table = plan_table.copy()
+display_plan_table["Category"] = display_plan_table["Category"].where(
+    display_plan_table["Category"] != display_plan_table["Category"].shift(), ""
+)
+
+st.dataframe(display_plan_table, use_container_width=True, hide_index=True)
 
 # ==================================================
-# MATCH PLAN SUB-CATEGORY <-> PO LIST SUB HEAD
-# Aggregate actual PO outflow by Sub Head + Month + Week
+# ACTUAL PO OUTFLOW (by Sub Head, Week)
 # ==================================================
 st.subheader("Actual PO Outflow (matched to Sub-Category, by Week)")
 
@@ -195,51 +184,46 @@ actual_breakdown = (
     po_window
     .groupby(["Sub Head", "Outflow Month", "Outflow Week"], as_index=False)["Outflow Amount"]
     .sum()
+    .sort_values(["Sub Head", "Outflow Week"])
 )
-
 actual_breakdown["Outflow Week"] = actual_breakdown["Outflow Week"].replace("", "N/A")
 
 st.dataframe(actual_breakdown, use_container_width=True, hide_index=True)
 
 # ==================================================
-# COMBINED VIEW: PLANNED vs ACTUAL PER SUB-CATEGORY/SUB HEAD
+# PLANNED vs ACTUAL (by Sub-Category / Sub Head)
 # ==================================================
 st.subheader("Planned vs Actual (by Sub-Category / Sub Head)")
 
 planned_by_sub = (
     plan_window
-    .groupby(["Sub-Category", "Month Outflow"], as_index=False)["Amount"]
+    .groupby("Sub-Category", as_index=False)["Amount"]
     .sum()
-    .rename(columns={"Sub-Category": "Sub Head", "Month Outflow": "Month", "Amount": "Planned (Cr)"})
+    .rename(columns={"Sub-Category": "Sub Head", "Amount": "Planned (Cr)"})
 )
 
 actual_by_sub = (
     po_window
-    .groupby(["Sub Head", "Outflow Month"], as_index=False)["Outflow Amount"]
+    .groupby("Sub Head", as_index=False)["Outflow Amount"]
     .sum()
-    .rename(columns={"Outflow Month": "Month", "Outflow Amount": "Actual (₹)"})
+    .rename(columns={"Outflow Amount": "Actual (Cr)"})
 )
 
-comparison = pd.merge(
-    planned_by_sub,
-    actual_by_sub,
-    on=["Sub Head", "Month"],
-    how="outer"
-)
-
-comparison = comparison.sort_values(["Month", "Sub Head"])
+comparison = pd.merge(planned_by_sub, actual_by_sub, on="Sub Head", how="outer")
+comparison = comparison.sort_values("Sub Head")
 
 st.dataframe(comparison, use_container_width=True, hide_index=True)
 
 # ==================================================
-# WEEKLY BREAKDOWN CHART
+# WEEKLY BREAKDOWN
 # ==================================================
 st.subheader("Weekly Outflow Breakdown")
 
 weekly = (
     po_window
-    .groupby(["Outflow Month", "Outflow Week", "Sub Head"], as_index=False)["Outflow Amount"]
+    .groupby(["Outflow Week", "Sub Head"], as_index=False)["Outflow Amount"]
     .sum()
+    .sort_values(["Outflow Week", "Sub Head"])
 )
 weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
 
