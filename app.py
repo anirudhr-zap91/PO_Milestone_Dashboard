@@ -157,7 +157,7 @@ plan_headers = [
 ]
 
 # Row 3 to Row 67
-plan_data = plan_records[2:67]
+plan_data = plan_records[2:]
 
 df_plan = pd.DataFrame(
     plan_data,
