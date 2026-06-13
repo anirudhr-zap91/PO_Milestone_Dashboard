@@ -1,121 +1,34 @@
 import streamlit as st
-import plotly.express as px
 import pandas as pd
 import gspread
 import json
 from google.oauth2.service_account import Credentials
 
-
 # ==================================================
 # PAGE CONFIG
 # ==================================================
-
-st.set_page_config(
-    page_title="PO Dashboard",
-    layout="wide"
-)
-
+st.set_page_config(page_title="PO Dashboard", layout="wide")
 st.title("PO Dashboard")
 
 # ==================================================
 # GOOGLE AUTH
 # ==================================================
-
-creds_dict = json.loads(
-    st.secrets["google_credentials"]
-)
+creds_dict = json.loads(st.secrets["google_credentials"])
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets.readonly",
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
-creds = Credentials.from_service_account_info(
-    creds_dict,
-    scopes=SCOPES,
-)
-
+creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 client = gspread.authorize(creds)
 
-# ==================================================
-# OPEN SHEET
-# ==================================================
-
 SHEET_ID = "1Wyw9IonVmLpiL2yoiVe2bSa9IgLhSCcO_h4Y_2gSgHU"
-
 spreadsheet = client.open_by_key(SHEET_ID)
 
-st.success("Connected Successfully!")
-
 # ==================================================
-# SHEET 1 : PO LIST & PAYMENT SCHEDULE
+# HELPER: CLEAN NUMERIC COLUMNS
 # ==================================================
-
-ws_po = spreadsheet.worksheet(
-    "PO List & Payment schedule"
-)
-
-po_records = ws_po.get_all_values()
-
-# Header row
-po_headers = [
-    str(col).strip()
-    for col in po_records[1]
-]
-
-# Row 3 to Row 367
-po_data = po_records[2:367]
-
-df_po = pd.DataFrame(
-    po_data,
-    columns=po_headers
-)
-
-# Fill merged-cell blanks
-df_po = df_po.ffill()
-
-required_po_cols = [
-    "Sr no.",
-    "Package Description",
-    "SPOC",
-    "Vendor",
-    "PO",
-    "PO Date",
-    "PO Value (excld GST)",
-    "PO Value (incld GST)",
-    "Payment Terms",
-    "Outflow Amount",
-    "Outflow Month",
-    "Outflow Week",
-    "Payment Type",
-    "Payment Status",
-    "Total %",
-    "Total Value",
-    "Currency",
-    "Head",
-    "Sub Head",
-    "Value"
-]
-
-available_po_cols = [
-    col
-    for col in required_po_cols
-    if col in df_po.columns
-]
-
-df_po = df_po[available_po_cols]
-
-# Remove fully blank rows
-df_po = df_po.replace("", pd.NA)
-
-df_po = df_po.dropna(
-    how="all"
-)
-
-# ==================================================
-# NUMERIC CONVERSION
-# ==================================================
-
 def clean_amount(series):
     return pd.to_numeric(
         series.astype(str)
@@ -125,428 +38,209 @@ def clean_amount(series):
         errors="coerce"
     )
 
-df_po["Outflow Amount"] = clean_amount(
-    df_po["Outflow Amount"]
-)
+# ==================================================
+# HELPER: PARSE "MONTH YEAR" STRINGS (handles "Jun 2026" and "June 2026")
+# ==================================================
+def parse_month(series):
+    parsed = pd.to_datetime(series, format="%b %Y", errors="coerce")
+    mask = parsed.isna()
+    parsed.loc[mask] = pd.to_datetime(series[mask], format="%B %Y", errors="coerce")
+    return parsed
 
-df_po["PO Value (incld GST)"] = clean_amount(
-    df_po["PO Value (incld GST)"]
-)
+# ==================================================
+# SHEET 1 : PO LIST & PAYMENT SCHEDULE
+# ==================================================
+ws_po = spreadsheet.worksheet("PO List & Payment schedule")
+po_records = ws_po.get_all_values()
 
-df_po["Total Value"] = clean_amount(
-    df_po["Total Value"]
-)
+po_headers = [str(c).strip() for c in po_records[1]]
+po_data = po_records[2:]
 
-df_po["Value"] = clean_amount(
-    df_po["Value"]
-)
+df_po = pd.DataFrame(po_data, columns=po_headers)
+
+required_po_cols = [
+    "Sr no.", "Package Description", "SPOC", "Vendor", "PO", "PO Date",
+    "PO Value (excld GST)", "PO Value (incld GST)", "Payment Terms",
+    "Outflow Amount", "Outflow Month", "Outflow Week", "Payment Type",
+    "Payment Status", "Total %", "Total Value", "Currency",
+    "Head", "Sub Head", "Value"
+]
+available_po_cols = [c for c in required_po_cols if c in df_po.columns]
+df_po = df_po[available_po_cols]
+
+# Forward-fill merged-cell columns (PO-level info repeated across payment rows)
+ffill_cols = [
+    "Sr no.", "Package Description", "SPOC", "Vendor", "PO", "PO Date",
+    "PO Value (excld GST)", "PO Value (incld GST)", "Payment Terms",
+    "Currency", "Head", "Sub Head", "Value"
+]
+for col in ffill_cols:
+    if col in df_po.columns:
+        df_po[col] = df_po[col].replace("", pd.NA).ffill()
+
+# Remove fully blank rows
+df_po = df_po.replace("", pd.NA)
+df_po = df_po.dropna(how="all")
+
+# Numeric conversion
+df_po["Outflow Amount"] = clean_amount(df_po["Outflow Amount"])
+df_po["Value"] = clean_amount(df_po["Value"])
+
+# Convert raw ₹ to Cr (1 Cr = 1,00,00,000) to match "PO to be issued" sheet units
+df_po["Outflow Amount"] = df_po["Outflow Amount"] / 1e7
+df_po["Value"] = df_po["Value"] / 1e7
+
+# Parse Outflow Month -> datetime
+df_po["Outflow_Month_Date"] = parse_month(df_po["Outflow Month"])
+
+# Drop rows with no usable outflow amount or month
+df_po = df_po[
+    df_po["Outflow Amount"].notna()
+    & df_po["Outflow_Month_Date"].notna()
+]
 
 # ==================================================
 # SHEET 2 : PO TO BE ISSUED
 # ==================================================
-
-ws_plan = spreadsheet.worksheet(
-    "PO to be issued"
-)
-
+ws_plan = spreadsheet.worksheet("PO to be issued")
 plan_records = ws_plan.get_all_values()
 
-plan_headers = [
-    str(col).strip()
-    for col in plan_records[1]
-]
+plan_headers = [str(c).strip() for c in plan_records[1]]
+plan_data = plan_records[2:68]   # rows 3 to 68 (covers all categories incl. PMC & Stat)
 
-# Row 3 to Row 67
-plan_data = plan_records[2:100]
-
-df_plan = pd.DataFrame(
-    plan_data,
-    columns=plan_headers
-)
-
-df_plan["Category"] = df_plan["Category"].replace("", pd.NA).ffill()
-df_plan["Sub-Category"] = df_plan["Sub-Category"].replace("", pd.NA).ffill()
-df_plan = df_plan[~df_plan["Category"].isin(["Subtotal", ""])]
-
+df_plan = pd.DataFrame(plan_data, columns=plan_headers)
 
 required_plan_cols = [
-    "Category",
-    "Sub-Category",
-    "Estimates/back quotes value",
-    "% Breakup",
-    "Amount",
-    "Month Outflow",
-    "Total %",
-    "Total Value"
+    "Category", "Sub-Category", "Estimates/back quotes value",
+    "% Breakup", "Amount", "Month Outflow", "Total %", "Total Value"
 ]
+available_plan_cols = [c for c in required_plan_cols if c in df_plan.columns]
+df_plan = df_plan[available_plan_cols]
 
-available_plan_cols = [
-    col
-    for col in required_plan_cols
-    if col in df_plan.columns
-]
+# Forward-fill merged Category / Sub-Category cells
+df_plan["Category"] = df_plan["Category"].replace("", pd.NA).ffill()
+df_plan["Sub-Category"] = df_plan["Sub-Category"].replace("", pd.NA).ffill()
 
+# Drop summary/total rows
+df_plan = df_plan[~df_plan["Category"].isin(["Subtotal", ""])]
+df_plan = df_plan[df_plan["Sub-Category"] != "Total"]
+
+# Numeric conversions
+df_plan["Amount"] = clean_amount(df_plan["Amount"])
+
+# Parse Month Outflow -> datetime
+df_plan["Month_Date"] = parse_month(df_plan["Month Outflow"])
+
+# Keep only rows with a real amount and a valid month
 df_plan = df_plan[
-    available_plan_cols
-]
-
-df_plan = df_plan.replace(
-    "",
-    pd.NA
-)
-
-df_plan = df_plan.dropna(
-    how="all"
-)
-df_plan["Amount"] = clean_amount(
-    df_plan["Amount"]
-)
-
-df_plan["Total Value"] = clean_amount(
-    df_plan["Total Value"]
-)
-
-df_plan["Estimates/back quotes value"] = clean_amount(
-    df_plan["Estimates/back quotes value"]
-)
-# ==================================================
-# UPCOMING PO REQUIREMENT
-# ==================================================
-
-st.header("Upcoming PO Requirement")
-
-# Convert Month Outflow to date
-
-df_plan["Month_Date"] = pd.to_datetime(
-    df_plan["Month Outflow"],
-    format="%B %Y",
-    errors="coerce"
-)
-
-# Only valid milestone rows
-
-future_plan = df_plan[
     (df_plan["Amount"] > 0)
-    &
-    (df_plan["Month_Date"].notna())
-].copy()
-
-# Sort by month
-
-future_plan = future_plan.sort_values(
-    "Month_Date"
-)
+    & (df_plan["Month_Date"].notna())
+]
 
 # ==================================================
-# NEXT 3 MONTH FILTER
+# CURRENT + NEXT MONTH (auto-updates based on today's date)
 # ==================================================
-
 today = pd.Timestamp.today()
+current_month = pd.Timestamp(year=today.year, month=today.month, day=1)
+next_month = current_month + pd.DateOffset(months=1)
 
-current_month = pd.Timestamp(
-    year=today.year,
-    month=today.month,
-    day=1
-)
+target_months = [current_month, next_month]
+target_month_labels = [m.strftime("%B %Y") for m in target_months]
 
-end_month = current_month + pd.DateOffset(
-    months=2
-)
-
-next_3_month_df = future_plan[
-    (future_plan["Month_Date"] >= current_month)
-    &
-    (future_plan["Month_Date"] <= end_month)
-].copy()
+st.header(f"PO Requirement: {target_month_labels[0]} & {target_month_labels[1]}")
 
 # ==================================================
-# TOTAL REQUIREMENT
+# PLAN: FILTER TO CURRENT + NEXT MONTH
 # ==================================================
-
-next_3_month_total = (
-    next_3_month_df["Amount"].sum()
-)
-
-st.metric(
-    "Next 3 Month PO Requirement",
-    f"₹ {next_3_month_total:.2f} Cr"
-)
+plan_window = df_plan[df_plan["Month_Date"].isin(target_months)].copy()
 
 # ==================================================
-# MONTH-WISE REQUIREMENT
+# ACTUAL PO: FILTER TO CURRENT + NEXT MONTH
 # ==================================================
-
-st.subheader("Month-wise Requirement")
-
-monthly_breakdown = (
-    next_3_month_df
-    .groupby("Month Outflow")["Amount"]
-    .sum()
-    .reset_index()
-)
-
-st.dataframe(
-    monthly_breakdown,
-    use_container_width=True
-)
+po_window = df_po[df_po["Outflow_Month_Date"].isin(target_months)].copy()
 
 # ==================================================
-# UPCOMING PO TABLE
+# TOTAL PLANNED REQUIREMENT
 # ==================================================
+total_planned = plan_window["Amount"].sum()
+total_actual = po_window["Outflow Amount"].sum()
 
-st.subheader("Upcoming POs")
-
-upcoming_po_table = next_3_month_df.copy()
-
-upcoming_po_table = upcoming_po_table.sort_values(
-    ["Month_Date", "Category"]
-)
-
-upcoming_po_table = upcoming_po_table[
-    [
-        "Category",
-        "Sub-Category",
-        "Amount",
-        "Month Outflow"
-    ]
-]
-
-st.dataframe(
-    upcoming_po_table,
-    use_container_width=True,
-    hide_index=True
-)
-
-# ==================================================
-# CATEGORY BREAKDOWN
-# ==================================================
-
-st.subheader("Category Breakdown")
-
-category_breakdown = (
-    next_3_month_df
-    .groupby("Category")["Amount"]
-    .sum()
-    .reset_index()
-)
-
-category_breakdown = (
-    category_breakdown
-    .sort_values(
-        "Amount",
-        ascending=False
-    )
-)
-
-st.dataframe(
-    category_breakdown,
-    use_container_width=True,
-    hide_index=True
-)
-
-# ==================================================
-# CATEGORY CHART
-# ==================================================
-
-fig = px.bar(
-    category_breakdown,
-    x="Category",
-    y="Amount",
-    text_auto=".2f",
-    title="Next 3 Month Requirement by Category"
-)
-
-fig.update_layout(
-    yaxis_title="Amount (Cr)",
-    height=500
-)
-
-st.plotly_chart(
-    fig,
-    use_container_width=True
-)
-
-# ==================================================
-# MONTHLY PAYMENT PROGRESS
-# ==================================================
-
-# Actual Paid (Completed only)
-actual_paid_monthly = (
-    df_po[
-        df_po["Payment Status"].isin(
-            ["Completed", "LC issued"]
-        )
-    ]
-    .groupby("Outflow Month")["Outflow Amount"]
-    .sum()
-    .reset_index()
-)
-
-
-actual_paid_monthly.columns = [
-    "Month",
-    "Actual Paid"
-]
-
-# Total Due (All payments regardless of status)
-
-total_due_monthly = (
-    df_po
-    .groupby("Outflow Month")["Outflow Amount"]
-    .sum()
-    .reset_index()
-)
-
-total_due_monthly.columns = [
-    "Month",
-    "Total Due"
-]
-
-# Merge
-
-payment_progress = pd.merge(
-    total_due_monthly,
-    actual_paid_monthly,
-    on="Month",
-    how="left"
-)
-
-payment_progress["Actual Paid"] = (
-    payment_progress["Actual Paid"]
-    .fillna(0)
-)
-
-# ==================================================
-# CLEAN MONTHS
-# ==================================================
-
-payment_progress = payment_progress[
-    payment_progress["Month"].notna()
-]
-
-payment_progress = payment_progress[
-    payment_progress["Month"] != ""
-]
-
-# ==================================================
-# SORT MONTHS
-# ==================================================
-
-payment_progress["Sort_Date"] = pd.to_datetime(
-    payment_progress["Month"],
-    format="%b %Y",
-    errors="coerce"
-)
-
-mask = payment_progress["Sort_Date"].isna()
-
-payment_progress.loc[
-    mask,
-    "Sort_Date"
-] = pd.to_datetime(
-    payment_progress.loc[
-        mask,
-        "Month"
-    ],
-    format="%B %Y",
-    errors="coerce"
-)
-
-payment_progress = payment_progress.sort_values(
-    "Sort_Date"
-)
-
-# ==================================================
-# PREPARE FOR PLOTLY
-# ==================================================
-
-chart_df = payment_progress.melt(
-    id_vars=["Month"],
-    value_vars=[
-        "Actual Paid",
-        "Total Due"
-    ],
-    var_name="Type",
-    value_name="Amount"
-)
-
-# ==================================================
-# CHART
-# ==================================================
-
-st.subheader("Monthly Payment Progress")
-
-fig = px.bar(
-    chart_df,
-    x="Month",
-    y="Amount",
-    color="Type",
-    barmode="group",
-    title="Actual Paid vs Total Due by Month",
-    text_auto=True
-)
-
-fig.update_layout(
-    xaxis_title="Month",
-    yaxis_title="Amount (₹)",
-    height=600,
-    legend_title=""
-)
-
-st.plotly_chart(
-    fig,
-    use_container_width=True
-)
-
-# ==================================================
-# KPI CALCULATIONS
-# ==================================================
-
-total_po_value = df_po["Value"].max()
-
-completed_payment = (
-    df_po[
-        df_po["Payment Status"] == "Completed"
-    ]["Outflow Amount"].sum()
-)
-
-pending_payment = (
-    df_po[
-        df_po["Payment Status"] != "Completed"
-    ]["Outflow Amount"].sum()
-)
-
-planned_value = (
-    df_plan["Amount"].sum()
-)
-# ==================================================
-# KPI DISPLAY
-# ==================================================
-
-st.header("Dashboard Summary")
-
-col1, col2, col3, col4 = st.columns(4)
-
+col1, col2 = st.columns(2)
 with col1:
-    st.metric(
-        "Total PO Value",
-        f"₹ {total_po_value:,.0f}"
-    )
-
+    st.metric(f"Planned Requirement ({target_month_labels[0]} + {target_month_labels[1]})", f"₹ {total_planned:.2f} Cr")
 with col2:
-    st.metric(
-        "Completed Payments",
-        f"₹ {completed_payment:,.0f}"
-    )
+    st.metric(f"Actual PO Outflow ({target_month_labels[0]} + {target_month_labels[1]})", f"₹ {total_actual:,.0f}")
 
-with col3:
-    st.metric(
-        "Pending Payments",
-        f"₹ {pending_payment:,.0f}"
-    )
+# ==================================================
+# PLANNED REQUIREMENT TABLE (by Category / Sub-Category / Month)
+# ==================================================
+st.subheader("Planned PO Requirement (Category / Sub-Category)")
 
-with col4:
-    st.metric(
-        "Planned Value",
-        f"₹ {planned_value:,.0f}"
-    )
+plan_table = (
+    plan_window
+    .groupby(["Category", "Sub-Category", "Month Outflow"], as_index=False)["Amount"]
+    .sum()
+    .sort_values(["Month Outflow", "Category", "Sub-Category"])
+)
+
+st.dataframe(plan_table, use_container_width=True, hide_index=True)
+
+# ==================================================
+# MATCH PLAN SUB-CATEGORY <-> PO LIST SUB HEAD
+# Aggregate actual PO outflow by Sub Head + Month + Week
+# ==================================================
+st.subheader("Actual PO Outflow (matched to Sub-Category, by Week)")
+
+actual_breakdown = (
+    po_window
+    .groupby(["Sub Head", "Outflow Month", "Outflow Week"], as_index=False)["Outflow Amount"]
+    .sum()
+)
+
+actual_breakdown["Outflow Week"] = actual_breakdown["Outflow Week"].replace("", "N/A")
+
+st.dataframe(actual_breakdown, use_container_width=True, hide_index=True)
+
+# ==================================================
+# COMBINED VIEW: PLANNED vs ACTUAL PER SUB-CATEGORY/SUB HEAD
+# ==================================================
+st.subheader("Planned vs Actual (by Sub-Category / Sub Head)")
+
+planned_by_sub = (
+    plan_window
+    .groupby(["Sub-Category", "Month Outflow"], as_index=False)["Amount"]
+    .sum()
+    .rename(columns={"Sub-Category": "Sub Head", "Month Outflow": "Month", "Amount": "Planned (Cr)"})
+)
+
+actual_by_sub = (
+    po_window
+    .groupby(["Sub Head", "Outflow Month"], as_index=False)["Outflow Amount"]
+    .sum()
+    .rename(columns={"Outflow Month": "Month", "Outflow Amount": "Actual (₹)"})
+)
+
+comparison = pd.merge(
+    planned_by_sub,
+    actual_by_sub,
+    on=["Sub Head", "Month"],
+    how="outer"
+)
+
+comparison = comparison.sort_values(["Month", "Sub Head"])
+
+st.dataframe(comparison, use_container_width=True, hide_index=True)
+
+# ==================================================
+# WEEKLY BREAKDOWN CHART
+# ==================================================
+st.subheader("Weekly Outflow Breakdown")
+
+weekly = (
+    po_window
+    .groupby(["Outflow Month", "Outflow Week", "Sub Head"], as_index=False)["Outflow Amount"]
+    .sum()
+)
+weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
+
+st.dataframe(weekly, use_container_width=True, hide_index=True)
