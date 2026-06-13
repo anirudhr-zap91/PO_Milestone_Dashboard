@@ -164,7 +164,9 @@ df_plan = pd.DataFrame(
     columns=plan_headers
 )
 
-df_plan = df_plan.ffill()
+df_plan["Category"] = df_plan["Category"].replace("", pd.NA).ffill()
+df_plan["Sub-Category"] = df_plan["Sub-Category"].replace("", pd.NA).ffill()
+
 
 required_plan_cols = [
     "Category",
