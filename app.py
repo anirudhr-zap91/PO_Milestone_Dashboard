@@ -166,6 +166,7 @@ df_plan = pd.DataFrame(
 
 df_plan["Category"] = df_plan["Category"].replace("", pd.NA).ffill()
 df_plan["Sub-Category"] = df_plan["Sub-Category"].replace("", pd.NA).ffill()
+df_plan = df_plan[~df_plan["Category"].isin(["Subtotal", ""])]
 
 
 required_plan_cols = [
