@@ -164,6 +164,8 @@ df_plan = pd.DataFrame(
     columns=plan_headers
 )
 
+df_plan = df_plan.ffill()
+
 required_plan_cols = [
     "Category",
     "Sub-Category",
