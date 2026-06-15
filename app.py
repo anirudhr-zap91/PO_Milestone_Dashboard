@@ -223,19 +223,25 @@ weekly = (
     po_window
     .groupby(["Outflow Week", "Sub Head"], as_index=False)["Outflow Amount"]
     .sum()
-    .sort_values(["Outflow Week", "Sub Head"])
 )
 weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
 
+# Per-week total rows
+weekly_totals = weekly.groupby("Outflow Week", as_index=False)["Outflow Amount"].sum()
+weekly_totals["Sub Head"] = "TOTAL"
+
+# Mark totals so they sort last within each week
+weekly["__order"] = 0
+weekly_totals["__order"] = 1
+
+weekly_combined = pd.concat([weekly, weekly_totals], ignore_index=True)
+weekly_combined = weekly_combined.sort_values(["Outflow Week", "__order", "Sub Head"])
+weekly_combined = weekly_combined.drop(columns="__order")
+
 # Blank out repeated week values so each week is shown only once
-display_weekly = weekly.copy()
+display_weekly = weekly_combined.copy()
 display_weekly["Outflow Week"] = display_weekly["Outflow Week"].where(
     display_weekly["Outflow Week"] != display_weekly["Outflow Week"].shift(), ""
 )
 
 st.dataframe(display_weekly, use_container_width=True, hide_index=True)
-
-totals = weekly.groupby("Outflow Week", as_index=False)["Outflow Amount"].sum()
-totals["Sub Head"] = "Total"
-
-weekly_with_totals = pd.concat([weekly, totals]).sort_values(["Outflow Week", "Sub Head"])
