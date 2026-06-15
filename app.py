@@ -162,7 +162,7 @@ st.subheader("Planned PO Requirement (Category / Sub-Category)")
 
 plan_table = (
     plan_window
-    .groupby(["Category", "Sub-Category", "Month Outflow"], as_index=False)["Amount"]
+    .groupby(["Category", "Sub-Category"], as_index=False)["Amount"]
     .sum()
     .sort_values(["Category", "Sub-Category"])
 )
@@ -227,4 +227,15 @@ weekly = (
 )
 weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
 
-st.dataframe(weekly, use_container_width=True, hide_index=True)
+# Blank out repeated week values so each week is shown only once
+display_weekly = weekly.copy()
+display_weekly["Outflow Week"] = display_weekly["Outflow Week"].where(
+    display_weekly["Outflow Week"] != display_weekly["Outflow Week"].shift(), ""
+)
+
+st.dataframe(display_weekly, use_container_width=True, hide_index=True)
+
+totals = weekly.groupby("Outflow Week", as_index=False)["Outflow Amount"].sum()
+totals["Sub Head"] = "Total"
+
+weekly_with_totals = pd.concat([weekly, totals]).sort_values(["Outflow Week", "Sub Head"])
