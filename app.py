@@ -149,11 +149,15 @@ po_window = df_po[df_po["Outflow_Month_Date"] == current_month].copy()
 total_planned = plan_window["Amount"].sum()
 total_actual = po_window["Outflow Amount"].sum()
 
-col1, col2 = st.columns(2)
+total_expected = total_planned + total_actual
+
+col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric(f"Planned Requirement ({current_month_label})", f"₹ {total_planned:.2f} Cr")
-with col2:
     st.metric(f"Actual PO Outflow ({current_month_label})", f"₹ {total_actual:.2f} Cr")
+with col2:
+    st.metric(f"Planned New PO Requirement ({current_month_label})", f"₹ {total_planned:.2f} Cr")
+with col3:
+    st.metric(f"Total Expected Outflow ({current_month_label})", f"₹ {total_expected:.2f} Cr")
 
 # ==================================================
 # PLANNED REQUIREMENT TABLE (Category shown once, grouped)
