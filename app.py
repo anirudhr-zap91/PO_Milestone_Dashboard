@@ -528,6 +528,17 @@ elif page == "📋 This Month Detail":
             weekly_pivot["Pending"] = weekly_pivot["Pending"].fillna(0)
             weekly_pivot["Total"] = weekly_pivot["Settled"] + weekly_pivot["Pending"]
 
+            # Add blank separator row between weeks
+            weeks_list = weekly_pivot["Outflow Week"].unique().tolist()
+            separated = []
+            for week in weeks_list:
+                week_rows = weekly_pivot[weekly_pivot["Outflow Week"] == week]
+                separated.append(week_rows)
+                blank = pd.DataFrame([["", "", 0.0, 0.0, 0.0]], columns=weekly_pivot.columns)
+                separated.append(blank)
+
+            weekly_pivot = pd.concat(separated, ignore_index=True)
+
             col_left, col_right = st.columns(2)
 
             with col_left:
@@ -537,6 +548,8 @@ elif page == "📋 This Month Detail":
                 )
 
                 def style_weekly(row):
+                    if row["Sub Head"] == "":
+                        return [""] * len(row)
                     is_total = row["Sub Head"] == "TOTAL"
                     base = "font-weight: bold; " if is_total else ""
                     return [
@@ -557,7 +570,11 @@ elif page == "📋 This Month Detail":
 
             with col_right:
                 # Stacked bar: Settled + Pending per week
-                weekly_chart = weekly_pivot[weekly_pivot["Sub Head"] != "TOTAL"].copy()
+                # Exclude blank and TOTAL rows for chart
+                weekly_chart = weekly_pivot[
+                    (weekly_pivot["Sub Head"] != "TOTAL") &
+                    (weekly_pivot["Sub Head"] != "")
+                ].copy()
 
                 week_summary = (
                     weekly_chart
@@ -597,4 +614,4 @@ elif page == "📋 This Month Detail":
                     legend_title="",
                     yaxis=dict(showgrid=True, gridcolor="#e8ecef")
                 )
-                st.plotly_chart(fig_weekly, use_container_width=True) 
+                st.plotly_chart(fig_weekly, use_container_width=True)
