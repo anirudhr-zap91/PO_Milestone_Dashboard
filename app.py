@@ -200,18 +200,22 @@ st.dataframe(actual_breakdown, use_container_width=True, hide_index=True)
 # ==================================================
 st.subheader("Weekly Outflow Breakdown")
 
+# Split by payment status
+po_window["Settlement"] = po_window["Payment Status"].apply(
+    lambda x: "Settled" if str(x).strip() in ["Completed", "LC issued"] else "Pending"
+)
+
 weekly = (
     po_window
-    .groupby(["Outflow Week", "Sub Head"], as_index=False)["Outflow Amount"]
+    .groupby(["Outflow Week", "Sub Head", "Settlement"], as_index=False)["Outflow Amount"]
     .sum()
 )
 weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
 
-# Per-week total rows
-weekly_totals = weekly.groupby("Outflow Week", as_index=False)["Outflow Amount"].sum()
+# Per-week totals split by settlement
+weekly_totals = weekly.groupby(["Outflow Week", "Settlement"], as_index=False)["Outflow Amount"].sum()
 weekly_totals["Sub Head"] = "TOTAL"
 
-# Mark totals so they sort last within each week
 weekly["__order"] = 0
 weekly_totals["__order"] = 1
 
@@ -219,10 +223,49 @@ weekly_combined = pd.concat([weekly, weekly_totals], ignore_index=True)
 weekly_combined = weekly_combined.sort_values(["Outflow Week", "__order", "Sub Head"])
 weekly_combined = weekly_combined.drop(columns="__order")
 
-# Blank out repeated week values so each week is shown only once
-display_weekly = weekly_combined.copy()
+# Pivot so Settled and Pending are side by side columns
+weekly_pivot = weekly_combined.pivot_table(
+    index=["Outflow Week", "Sub Head"],
+    columns="Settlement",
+    values="Outflow Amount",
+    aggfunc="sum"
+).reset_index()
+
+weekly_pivot.columns.name = None
+weekly_pivot = weekly_pivot.rename_axis(None, axis=1)
+
+# Ensure both columns exist even if all rows are one status
+for col in ["Settled", "Pending"]:
+    if col not in weekly_pivot.columns:
+        weekly_pivot[col] = 0.0
+
+weekly_pivot["Settled"] = weekly_pivot["Settled"].fillna(0)
+weekly_pivot["Pending"] = weekly_pivot["Pending"].fillna(0)
+weekly_pivot["Total"] = weekly_pivot["Settled"] + weekly_pivot["Pending"]
+
+# Blank repeated week labels
+display_weekly = weekly_pivot.copy()
 display_weekly["Outflow Week"] = display_weekly["Outflow Week"].where(
     display_weekly["Outflow Week"] != display_weekly["Outflow Week"].shift(), ""
 )
 
-st.dataframe(display_weekly, use_container_width=True, hide_index=True)
+# Bold TOTAL rows, green for Settled, red for Pending
+def style_weekly(row):
+    is_total = row["Sub Head"] == "TOTAL"
+    base = "font-weight: bold; " if is_total else ""
+    return [
+        base,
+        base,
+        base + "color: #27ae60",   # Settled - green
+        base + "color: #c0392b",   # Pending - red
+        base
+    ]
+
+styled_weekly = (
+    display_weekly.style
+    .apply(style_weekly, axis=1)
+    .hide(axis="index")
+    .format({"Settled": "{:.2f}", "Pending": "{:.2f}", "Total": "{:.2f}"})
+)
+
+st.markdown(styled_weekly.to_html(), unsafe_allow_html=True)
