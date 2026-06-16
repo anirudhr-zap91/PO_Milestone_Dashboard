@@ -305,7 +305,7 @@ if page == "📊 Overview":
         )
         st.plotly_chart(fig_settle, use_container_width=True)
 
-  elif page == "📋 This Month Detail":
+    elif page == "📋 This Month Detail":
 
     st.markdown(f"""
         <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
