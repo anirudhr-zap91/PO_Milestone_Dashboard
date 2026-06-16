@@ -305,4 +305,296 @@ if page == "📊 Overview":
         )
         st.plotly_chart(fig_settle, use_container_width=True)
 
-   
+  elif page == "📋 This Month Detail":
+
+    st.markdown(f"""
+        <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
+            📋 This Month Detail: {current_month_label}
+        </h2>
+    """, unsafe_allow_html=True)
+
+    # ----------------------------------------------
+    # TAB LAYOUT: Planned | Actual | Weekly
+    # ----------------------------------------------
+    tab1, tab2, tab3 = st.tabs(["📌 Planned PO Requirement", "💰 Actual PO Outflow", "📅 Weekly Breakdown"])
+
+    # ==================
+    # TAB 1: PLANNED
+    # ==================
+    with tab1:
+        section_header("Planned PO Requirement", "📌")
+
+        if plan_window.empty:
+            st.info("No planned POs found for this month.")
+        else:
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                # Table
+                plan_table = (
+                    plan_window
+                    .groupby(["Category", "Sub-Category"], as_index=False)["Amount"]
+                    .sum()
+                    .sort_values(["Category", "Sub-Category"])
+                )
+
+                display_plan_table = plan_table.copy()
+                display_plan_table["Category"] = display_plan_table["Category"].where(
+                    display_plan_table["Category"] != display_plan_table["Category"].shift(), ""
+                )
+
+                def style_plan_table(row):
+                    if row["Category"] != "":
+                        return [
+                            "font-weight: bold; background-color: #eaf4fb; color: #1a3c5e",
+                            "",
+                            ""
+                        ]
+                    return ["", "", ""]
+
+                styled_plan = (
+                    display_plan_table.style
+                    .apply(style_plan_table, axis=1)
+                    .hide(axis="index")
+                    .format({"Amount": "{:.2f}"})
+                )
+                st.markdown(styled_plan.to_html(), unsafe_allow_html=True)
+
+                # Category total below table
+                st.markdown(f"""
+                    <div style="margin-top:12px; padding: 10px 14px;
+                                background:#eafaf1; border-radius:6px;
+                                border-left: 4px solid #27ae60">
+                        <strong style="color:#1a3c5e">
+                            Total Planned: ₹ {total_planned:.2f} Cr
+                        </strong>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col_right:
+                # Donut chart by Category
+                plan_cat = (
+                    plan_window
+                    .groupby("Category")["Amount"]
+                    .sum()
+                    .reset_index()
+                )
+
+                fig_plan_donut = go.Figure(data=[go.Pie(
+                    labels=plan_cat["Category"],
+                    values=plan_cat["Amount"],
+                    hole=0.5,
+                    textinfo="label+percent",
+                    hovertemplate="%{label}<br>₹ %{value:.2f} Cr<extra></extra>"
+                )])
+                fig_plan_donut.update_layout(
+                    title=dict(
+                        text="Planned Requirement by Category",
+                        font=dict(color="#1a3c5e", size=15)
+                    ),
+                    height=420,
+                    margin=dict(t=50, b=20, l=20, r=20),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    legend=dict(orientation="h", y=-0.15)
+                )
+                st.plotly_chart(fig_plan_donut, use_container_width=True)
+
+    # ==================
+    # TAB 2: ACTUAL
+    # ==================
+    with tab2:
+        section_header("Actual PO Outflow", "💰")
+
+        if po_window.empty:
+            st.info("No actual PO outflow found for this month.")
+        else:
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                # Table: Sub Head + Outflow Week + Amount
+                actual_table = (
+                    po_window
+                    .groupby(["Head", "Sub Head"], as_index=False)["Outflow Amount"]
+                    .sum()
+                    .sort_values(["Head", "Sub Head"])
+                )
+
+                display_actual = actual_table.copy()
+                display_actual["Head"] = display_actual["Head"].where(
+                    display_actual["Head"] != display_actual["Head"].shift(), ""
+                )
+
+                def style_actual_table(row):
+                    if row["Head"] != "":
+                        return [
+                            "font-weight: bold; background-color: #eaf4fb; color: #1a3c5e",
+                            "",
+                            ""
+                        ]
+                    return ["", "", ""]
+
+                styled_actual = (
+                    display_actual.style
+                    .apply(style_actual_table, axis=1)
+                    .hide(axis="index")
+                    .format({"Outflow Amount": "{:.2f}"})
+                )
+                st.markdown(styled_actual.to_html(), unsafe_allow_html=True)
+
+                st.markdown(f"""
+                    <div style="margin-top:12px; padding: 10px 14px;
+                                background:#eaf4fb; border-radius:6px;
+                                border-left: 4px solid #2980b9">
+                        <strong style="color:#1a3c5e">
+                            Total Actual Outflow: ₹ {total_actual:.2f} Cr
+                        </strong>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col_right:
+                # Donut chart by Head
+                actual_head = (
+                    po_window
+                    .groupby("Head")["Outflow Amount"]
+                    .sum()
+                    .reset_index()
+                )
+
+                fig_actual_donut = go.Figure(data=[go.Pie(
+                    labels=actual_head["Head"],
+                    values=actual_head["Outflow Amount"],
+                    hole=0.5,
+                    textinfo="label+percent",
+                    hovertemplate="%{label}<br>₹ %{value:.2f} Cr<extra></extra>"
+                )])
+                fig_actual_donut.update_layout(
+                    title=dict(
+                        text="Actual Outflow by Head",
+                        font=dict(color="#1a3c5e", size=15)
+                    ),
+                    height=420,
+                    margin=dict(t=50, b=20, l=20, r=20),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    legend=dict(orientation="h", y=-0.15)
+                )
+                st.plotly_chart(fig_actual_donut, use_container_width=True)
+
+    # ==================
+    # TAB 3: WEEKLY
+    # ==================
+    with tab3:
+        section_header("Weekly Outflow Breakdown", "📅")
+
+        if po_window.empty:
+            st.info("No outflow data found for this month.")
+        else:
+            po_window["Settlement"] = po_window["Payment Status"].apply(
+                lambda x: "Settled" if str(x).strip() in ["Completed", "LC issued"] else "Pending"
+            )
+
+            weekly = (
+                po_window
+                .groupby(["Outflow Week", "Sub Head", "Settlement"], as_index=False)["Outflow Amount"]
+                .sum()
+            )
+            weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
+
+            weekly_totals = weekly.groupby(
+                ["Outflow Week", "Settlement"], as_index=False
+            )["Outflow Amount"].sum()
+            weekly_totals["Sub Head"] = "TOTAL"
+
+            weekly["__order"] = 0
+            weekly_totals["__order"] = 1
+
+            weekly_combined = pd.concat([weekly, weekly_totals], ignore_index=True)
+            weekly_combined = weekly_combined.sort_values(["Outflow Week", "__order", "Sub Head"])
+            weekly_combined = weekly_combined.drop(columns="__order")
+
+            weekly_pivot = weekly_combined.pivot_table(
+                index=["Outflow Week", "Sub Head"],
+                columns="Settlement",
+                values="Outflow Amount",
+                aggfunc="sum"
+            ).reset_index()
+
+            weekly_pivot.columns.name = None
+
+            for col in ["Settled", "Pending"]:
+                if col not in weekly_pivot.columns:
+                    weekly_pivot[col] = 0.0
+
+            weekly_pivot["Settled"] = weekly_pivot["Settled"].fillna(0)
+            weekly_pivot["Pending"] = weekly_pivot["Pending"].fillna(0)
+            weekly_pivot["Total"] = weekly_pivot["Settled"] + weekly_pivot["Pending"]
+
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                display_weekly = weekly_pivot.copy()
+                display_weekly["Outflow Week"] = display_weekly["Outflow Week"].where(
+                    display_weekly["Outflow Week"] != display_weekly["Outflow Week"].shift(), ""
+                )
+
+                def style_weekly(row):
+                    is_total = row["Sub Head"] == "TOTAL"
+                    base = "font-weight: bold; " if is_total else ""
+                    return [
+                        base,
+                        base,
+                        base + "color: #27ae60",
+                        base + "color: #c0392b",
+                        base
+                    ]
+
+                styled_weekly = (
+                    display_weekly.style
+                    .apply(style_weekly, axis=1)
+                    .hide(axis="index")
+                    .format({"Settled": "{:.2f}", "Pending": "{:.2f}", "Total": "{:.2f}"})
+                )
+                st.markdown(styled_weekly.to_html(), unsafe_allow_html=True)
+
+            with col_right:
+                # Stacked bar: Settled + Pending per week
+                weekly_chart = weekly_pivot[weekly_pivot["Sub Head"] != "TOTAL"].copy()
+
+                week_summary = (
+                    weekly_chart
+                    .groupby("Outflow Week")[["Settled", "Pending"]]
+                    .sum()
+                    .reset_index()
+                )
+
+                fig_weekly = go.Figure()
+                fig_weekly.add_trace(go.Bar(
+                    name="Settled",
+                    x=week_summary["Outflow Week"],
+                    y=week_summary["Settled"],
+                    marker_color="#27ae60",
+                    text=week_summary["Settled"].apply(lambda x: f"{x:.2f}"),
+                    textposition="inside"
+                ))
+                fig_weekly.add_trace(go.Bar(
+                    name="Pending",
+                    x=week_summary["Outflow Week"],
+                    y=week_summary["Pending"],
+                    marker_color="#c0392b",
+                    text=week_summary["Pending"].apply(lambda x: f"{x:.2f}"),
+                    textposition="inside"
+                ))
+                fig_weekly.update_layout(
+                    barmode="stack",
+                    title=dict(
+                        text="Settled vs Pending by Week",
+                        font=dict(color="#1a3c5e", size=15)
+                    ),
+                    xaxis_title="Week",
+                    yaxis_title="Amount (Cr)",
+                    height=420,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    legend_title="",
+                    yaxis=dict(showgrid=True, gridcolor="#e8ecef")
+                )
+                st.plotly_chart(fig_weekly, use_container_width=True) 
