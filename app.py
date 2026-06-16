@@ -186,7 +186,7 @@ st.subheader("Actual PO Outflow (matched to Sub-Category, by Week)")
 
 actual_breakdown = (
     po_window
-    .groupby(["Sub Head", "Outflow Month", "Outflow Week"], as_index=False)["Outflow Amount"]
+    .groupby(["Sub Head", "Outflow Week"], as_index=False)["Outflow Amount"]
     .sum()
     .sort_values(["Sub Head", "Outflow Week"])
 )
