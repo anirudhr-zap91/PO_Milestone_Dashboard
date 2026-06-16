@@ -194,29 +194,6 @@ actual_breakdown["Outflow Week"] = actual_breakdown["Outflow Week"].replace("", 
 
 st.dataframe(actual_breakdown, use_container_width=True, hide_index=True)
 
-# ==================================================
-# PLANNED vs ACTUAL (by Sub-Category / Sub Head)
-# ==================================================
-st.subheader("Planned vs Actual (by Sub-Category / Sub Head)")
-
-planned_by_sub = (
-    plan_window
-    .groupby("Sub-Category", as_index=False)["Amount"]
-    .sum()
-    .rename(columns={"Sub-Category": "Sub Head", "Amount": "Planned (Cr)"})
-)
-
-actual_by_sub = (
-    po_window
-    .groupby("Sub Head", as_index=False)["Outflow Amount"]
-    .sum()
-    .rename(columns={"Outflow Amount": "Actual (Cr)"})
-)
-
-comparison = pd.merge(planned_by_sub, actual_by_sub, on="Sub Head", how="outer")
-comparison = comparison.sort_values("Sub Head")
-
-st.dataframe(comparison, use_container_width=True, hide_index=True)
 
 # ==================================================
 # WEEKLY BREAKDOWN
