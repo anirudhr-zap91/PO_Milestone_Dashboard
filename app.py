@@ -8,7 +8,44 @@ from google.oauth2.service_account import Credentials
 # PAGE CONFIG
 # ==================================================
 st.set_page_config(page_title="PO Dashboard", layout="wide")
-st.title("PO Dashboard")
+
+# ==================================================
+# GLOBAL CSS
+# ==================================================
+st.markdown("""
+    <style>
+        .main { padding: 20px 30px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background-color: #1a3c5e !important; color: white !important;
+             padding: 10px !important; text-align: left !important; }
+        td { padding: 8px 10px !important; border-bottom: 1px solid #e8ecef; }
+        tr:hover td { background-color: #f5f9fd; }
+    </style>
+""", unsafe_allow_html=True)
+
+# ==================================================
+# HEADER BANNER
+# ==================================================
+st.markdown("""
+    <div style="background: linear-gradient(90deg, #1a3c5e, #2980b9);
+                padding: 20px 30px; border-radius: 10px; margin-bottom: 20px">
+        <h1 style="color: white; margin: 0; font-size: 2rem">📋 PO Dashboard</h1>
+        <p style="color: #cce4f7; margin: 5px 0 0 0; font-size: 0.95rem">
+            Purchase Order Tracking & Cash Flow Overview
+        </p>
+    </div>
+""", unsafe_allow_html=True)
+
+# ==================================================
+# SECTION HEADER HELPER
+# ==================================================
+def section_header(title, icon=""):
+    st.markdown(f"""
+        <div style="margin: 30px 0 10px 0; padding-bottom: 8px;
+                    border-bottom: 2px solid #2980b9">
+            <h3 style="margin:0; color:#1a3c5e">{icon} {title}</h3>
+        </div>
+    """, unsafe_allow_html=True)
 
 # ==================================================
 # GOOGLE AUTH
@@ -77,11 +114,9 @@ for col in ffill_cols:
 df_po = df_po.replace("", pd.NA)
 df_po = df_po.dropna(how="all")
 
-# Numeric conversions
 df_po["Outflow Amount"] = clean_amount(df_po["Outflow Amount"])
 df_po["Value"] = clean_amount(df_po["Value"])
 
-# Convert raw ₹ to Cr to match plan sheet units
 df_po["Outflow Amount"] = df_po["Outflow Amount"] / 1e7
 df_po["Value"] = df_po["Value"] / 1e7
 
@@ -125,54 +160,58 @@ df_plan = df_plan[
 ]
 
 # ==================================================
-# CURRENT MONTH ONLY (auto-updates based on today's date)
+# CURRENT MONTH
 # ==================================================
 today = pd.Timestamp.today()
 current_month = pd.Timestamp(year=today.year, month=today.month, day=1)
 current_month_label = current_month.strftime("%B %Y")
 
-st.header(f"PO Requirement: {current_month_label}")
+st.markdown(f"""
+    <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
+        📅 PO Requirement: {current_month_label}
+    </h2>
+""", unsafe_allow_html=True)
 
 # ==================================================
-# PLAN: FILTER TO CURRENT MONTH
+# FILTER TO CURRENT MONTH
 # ==================================================
 plan_window = df_plan[df_plan["Month_Date"] == current_month].copy()
-
-# ==================================================
-# ACTUAL PO: FILTER TO CURRENT MONTH
-# ==================================================
 po_window = df_po[df_po["Outflow_Month_Date"] == current_month].copy()
 
 # ==================================================
-# TOTAL PLANNED REQUIREMENT
+# KPI CARDS
 # ==================================================
 total_planned = plan_window["Amount"].sum()
 total_actual = po_window["Outflow Amount"].sum()
-
 total_expected = total_planned + total_actual
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric(f"Actual PO Outflow ({current_month_label})", f"₹ {total_actual:.2f} Cr")
-with col2:
-    st.metric(f"Planned New PO Requirement ({current_month_label})", f"₹ {total_planned:.2f} Cr")
-with col3:
-    st.metric(f"Total Expected Outflow ({current_month_label})", f"₹ {total_expected:.2f} Cr")
-st.markdown("""
-<style>
-[data-testid="metric-container"] {
-    background-color: #f8f9fa;
-    border: 1px solid #e6e6e6;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0px 2px 6px rgba(0,0,0,0.08);
-}
-</style>
+st.markdown(f"""
+    <div style="display: flex; gap: 20px; margin: 20px 0">
+        <div style="flex:1; background:#eaf4fb; border-left: 5px solid #2980b9;
+                    padding: 20px; border-radius: 8px">
+            <p style="margin:0; color:#555; font-size:0.85rem">Actual PO Outflow</p>
+            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_actual:.2f} Cr</h2>
+            <p style="margin:0; color:#888; font-size:0.8rem">{current_month_label}</p>
+        </div>
+        <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
+                    padding: 20px; border-radius: 8px">
+            <p style="margin:0; color:#555; font-size:0.85rem">Planned New PO Requirement</p>
+            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_planned:.2f} Cr</h2>
+            <p style="margin:0; color:#888; font-size:0.8rem">{current_month_label}</p>
+        </div>
+        <div style="flex:1; background:#eafaf1; border-left: 5px solid #27ae60;
+                    padding: 20px; border-radius: 8px">
+            <p style="margin:0; color:#555; font-size:0.85rem">Total Expected Outflow</p>
+            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_expected:.2f} Cr</h2>
+            <p style="margin:0; color:#888; font-size:0.8rem">{current_month_label}</p>
+        </div>
+    </div>
 """, unsafe_allow_html=True)
+
 # ==================================================
-# PLANNED REQUIREMENT TABLE (Category shown once, grouped)
+# PLANNED PO REQUIREMENT TABLE
 # ==================================================
-st.subheader("Planned PO Requirement (Category / Sub-Category)")
+section_header("Planned PO Requirement", "📌")
 
 plan_table = (
     plan_window
@@ -181,18 +220,29 @@ plan_table = (
     .sort_values(["Category", "Sub-Category"])
 )
 
-# Blank out repeated Category values so it's shown only once per group
 display_plan_table = plan_table.copy()
 display_plan_table["Category"] = display_plan_table["Category"].where(
     display_plan_table["Category"] != display_plan_table["Category"].shift(), ""
 )
 
-st.dataframe(display_plan_table, use_container_width=True, hide_index=True)
+def style_plan_table(row):
+    if row["Category"] != "":
+        return ["font-weight: bold; background-color: #eaf4fb; color: #1a3c5e"] * len(row)
+    return [""] * len(row)
+
+styled_plan = (
+    display_plan_table.style
+    .apply(style_plan_table, axis=1)
+    .hide(axis="index")
+    .format({"Amount": "{:.2f}"})
+)
+
+st.markdown(styled_plan.to_html(), unsafe_allow_html=True)
 
 # ==================================================
-# ACTUAL PO OUTFLOW (by Sub Head, Week)
+# ACTUAL PO OUTFLOW
 # ==================================================
-st.subheader("Actual PO Outflow (matched to Sub-Category, by Week)")
+section_header("Actual PO Outflow by Sub-Head & Week", "💰")
 
 actual_breakdown = (
     po_window
@@ -204,13 +254,11 @@ actual_breakdown["Outflow Week"] = actual_breakdown["Outflow Week"].replace("", 
 
 st.dataframe(actual_breakdown, use_container_width=True, hide_index=True)
 
-
 # ==================================================
 # WEEKLY BREAKDOWN
 # ==================================================
-st.subheader("Weekly Outflow Breakdown")
+section_header("Weekly Outflow Breakdown", "📅")
 
-# Split by payment status
 po_window["Settlement"] = po_window["Payment Status"].apply(
     lambda x: "Settled" if str(x).strip() in ["Completed", "LC issued"] else "Pending"
 )
@@ -222,7 +270,6 @@ weekly = (
 )
 weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
 
-# Per-week totals split by settlement
 weekly_totals = weekly.groupby(["Outflow Week", "Settlement"], as_index=False)["Outflow Amount"].sum()
 weekly_totals["Sub Head"] = "TOTAL"
 
@@ -233,7 +280,6 @@ weekly_combined = pd.concat([weekly, weekly_totals], ignore_index=True)
 weekly_combined = weekly_combined.sort_values(["Outflow Week", "__order", "Sub Head"])
 weekly_combined = weekly_combined.drop(columns="__order")
 
-# Pivot so Settled and Pending are side by side columns
 weekly_pivot = weekly_combined.pivot_table(
     index=["Outflow Week", "Sub Head"],
     columns="Settlement",
@@ -244,7 +290,6 @@ weekly_pivot = weekly_combined.pivot_table(
 weekly_pivot.columns.name = None
 weekly_pivot = weekly_pivot.rename_axis(None, axis=1)
 
-# Ensure both columns exist even if all rows are one status
 for col in ["Settled", "Pending"]:
     if col not in weekly_pivot.columns:
         weekly_pivot[col] = 0.0
@@ -253,21 +298,19 @@ weekly_pivot["Settled"] = weekly_pivot["Settled"].fillna(0)
 weekly_pivot["Pending"] = weekly_pivot["Pending"].fillna(0)
 weekly_pivot["Total"] = weekly_pivot["Settled"] + weekly_pivot["Pending"]
 
-# Blank repeated week labels
 display_weekly = weekly_pivot.copy()
 display_weekly["Outflow Week"] = display_weekly["Outflow Week"].where(
     display_weekly["Outflow Week"] != display_weekly["Outflow Week"].shift(), ""
 )
 
-# Bold TOTAL rows, green for Settled, red for Pending
 def style_weekly(row):
     is_total = row["Sub Head"] == "TOTAL"
     base = "font-weight: bold; " if is_total else ""
     return [
         base,
         base,
-        base + "color: #27ae60",   # Settled - green
-        base + "color: #c0392b",   # Pending - red
+        base + "color: #27ae60",
+        base + "color: #c0392b",
         base
     ]
 
