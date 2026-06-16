@@ -965,3 +965,383 @@ elif page == "📅 Upcoming Month":
                     yaxis=dict(showgrid=True, gridcolor="#e8ecef")
                 )
                 st.plotly_chart(fig_weekly_n, use_container_width=True)
+elif page == "📈 Historical Data":
+
+    st.markdown("""
+        <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
+            📈 Historical Data
+        </h2>
+    """, unsafe_allow_html=True)
+
+    # Filter to all months strictly before current month
+    df_hist = df_po[df_po["Outflow_Month_Date"] < current_month].copy()
+
+    if df_hist.empty:
+        st.info("No historical data found before the current month.")
+    else:
+        # ----------------------------------------------
+        # KPI CARDS
+        # ----------------------------------------------
+        total_hist = df_hist["Outflow Amount"].sum()
+        total_settled_hist = df_hist[
+            df_hist["Payment Status"].isin(["Completed", "LC issued"])
+        ]["Outflow Amount"].sum()
+        total_pending_hist = total_hist - total_settled_hist
+
+        st.markdown(f"""
+            <div style="display: flex; gap: 20px; margin: 20px 0">
+                <div style="flex:1; background:#eaf4fb; border-left: 5px solid #2980b9;
+                            padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                    <p style="margin:0; color:#555; font-size:0.85rem">Total Historical Outflow</p>
+                    <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_hist:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">All months before {current_month_label}</p>
+                </div>
+                <div style="flex:1; background:#eafaf1; border-left: 5px solid #27ae60;
+                            padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                    <p style="margin:0; color:#555; font-size:0.85rem">Total Settled</p>
+                    <h2 style="margin:5px 0; color:#27ae60">₹ {total_settled_hist:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">Completed + LC Issued</p>
+                </div>
+                <div style="flex:1; background:#fdf2f2; border-left: 5px solid #c0392b;
+                            padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                    <p style="margin:0; color:#555; font-size:0.85rem">Total Pending</p>
+                    <h2 style="margin:5px 0; color:#c0392b">₹ {total_pending_hist:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">Not yet settled</p>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # ----------------------------------------------
+        # TABS
+        # ----------------------------------------------
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Monthly Overview",
+            "💳 Payment Status",
+            "🏗️ Head Breakdown",
+            "🏢 Vendor Analysis"
+        ])
+
+        # ==================
+        # TAB 1: MONTHLY OVERVIEW
+        # ==================
+        with tab1:
+            section_header("Month-wise Outflow", "📊")
+
+            monthly = (
+                df_hist
+                .groupby("Outflow_Month_Date", as_index=False)["Outflow Amount"]
+                .sum()
+                .sort_values("Outflow_Month_Date")
+            )
+            monthly["Month Label"] = monthly["Outflow_Month_Date"].dt.strftime("%b %Y")
+            monthly["Cumulative"] = monthly["Outflow Amount"].cumsum()
+
+            # Combined bar + line chart
+            fig_monthly = go.Figure()
+
+            fig_monthly.add_trace(go.Bar(
+                x=monthly["Month Label"],
+                y=monthly["Outflow Amount"],
+                name="Monthly Outflow",
+                marker_color="#2980b9",
+                text=monthly["Outflow Amount"].apply(lambda x: f"{x:.2f}"),
+                textposition="outside",
+                yaxis="y1"
+            ))
+
+            fig_monthly.add_trace(go.Scatter(
+                x=monthly["Month Label"],
+                y=monthly["Cumulative"],
+                name="Cumulative Outflow",
+                mode="lines+markers",
+                line=dict(color="#f39c12", width=2),
+                marker=dict(size=6),
+                yaxis="y2"
+            ))
+
+            fig_monthly.update_layout(
+                title=dict(
+                    text="Monthly vs Cumulative Outflow",
+                    font=dict(color="#1a3c5e", size=15)
+                ),
+                xaxis=dict(title="Month"),
+                yaxis=dict(
+                    title="Monthly Outflow (Cr)",
+                    showgrid=True,
+                    gridcolor="#e8ecef"
+                ),
+                yaxis2=dict(
+                    title="Cumulative Outflow (Cr)",
+                    overlaying="y",
+                    side="right",
+                    showgrid=False
+                ),
+                height=450,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                legend=dict(orientation="h", y=-0.2),
+                barmode="group"
+            )
+            st.plotly_chart(fig_monthly, use_container_width=True)
+
+            # Summary table below chart
+            section_header("Month-wise Summary Table", "📋")
+            summary_table = monthly[["Month Label", "Outflow Amount", "Cumulative"]].copy()
+            summary_table = summary_table.rename(columns={
+                "Month Label": "Month",
+                "Outflow Amount": "Outflow (Cr)",
+                "Cumulative": "Cumulative (Cr)"
+            })
+            st.dataframe(
+                summary_table.style
+                .format({"Outflow (Cr)": "{:.2f}", "Cumulative (Cr)": "{:.2f}"})
+                .hide(axis="index"),
+                use_container_width=True
+            )
+
+        # ==================
+        # TAB 2: PAYMENT STATUS
+        # ==================
+        with tab2:
+            section_header("Payment Status Breakdown", "💳")
+
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                # Month-wise stacked bar: Settled vs Pending
+                df_hist["Settlement"] = df_hist["Payment Status"].apply(
+                    lambda x: "Settled" if str(x).strip() in ["Completed", "LC issued"] else "Pending"
+                )
+
+                monthly_status = (
+                    df_hist
+                    .groupby(["Outflow_Month_Date", "Settlement"], as_index=False)["Outflow Amount"]
+                    .sum()
+                    .sort_values("Outflow_Month_Date")
+                )
+                monthly_status["Month Label"] = monthly_status["Outflow_Month_Date"].dt.strftime("%b %Y")
+
+                fig_status = px.bar(
+                    monthly_status,
+                    x="Month Label",
+                    y="Outflow Amount",
+                    color="Settlement",
+                    barmode="stack",
+                    color_discrete_map={"Settled": "#27ae60", "Pending": "#c0392b"},
+                    labels={"Outflow Amount": "Amount (Cr)", "Month Label": "Month"},
+                    title="Monthly Settled vs Pending",
+                    text_auto=".2f"
+                )
+                fig_status.update_layout(
+                    height=420,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    legend_title="",
+                    title_font=dict(color="#1a3c5e", size=15),
+                    yaxis=dict(showgrid=True, gridcolor="#e8ecef")
+                )
+                st.plotly_chart(fig_status, use_container_width=True)
+
+            with col_right:
+                # Overall payment status donut
+                status_overall = (
+                    df_hist
+                    .groupby("Payment Status")["Outflow Amount"]
+                    .sum()
+                    .reset_index()
+                )
+                status_overall = status_overall[status_overall["Outflow Amount"] > 0]
+
+                fig_status_donut = go.Figure(data=[go.Pie(
+                    labels=status_overall["Payment Status"],
+                    values=status_overall["Outflow Amount"],
+                    hole=0.5,
+                    textinfo="label+percent",
+                    hovertemplate="%{label}<br>₹ %{value:.2f} Cr<extra></extra>"
+                )])
+                fig_status_donut.update_layout(
+                    title=dict(
+                        text="Overall Payment Status (All History)",
+                        font=dict(color="#1a3c5e", size=15)
+                    ),
+                    height=420,
+                    margin=dict(t=50, b=20, l=20, r=20),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    legend=dict(orientation="h", y=-0.15)
+                )
+                st.plotly_chart(fig_status_donut, use_container_width=True)
+
+        # ==================
+        # TAB 3: HEAD BREAKDOWN
+        # ==================
+        with tab3:
+            section_header("Outflow by Head Over Time", "🏗️")
+
+            # Month-wise stacked bar by Head
+            monthly_head = (
+                df_hist
+                .groupby(["Outflow_Month_Date", "Head"], as_index=False)["Outflow Amount"]
+                .sum()
+                .sort_values("Outflow_Month_Date")
+            )
+            monthly_head["Month Label"] = monthly_head["Outflow_Month_Date"].dt.strftime("%b %Y")
+
+            fig_head = px.bar(
+                monthly_head,
+                x="Month Label",
+                y="Outflow Amount",
+                color="Head",
+                barmode="stack",
+                labels={"Outflow Amount": "Amount (Cr)", "Month Label": "Month"},
+                title="Month-wise Outflow by Head",
+                text_auto=".2f"
+            )
+            fig_head.update_layout(
+                height=450,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                legend_title="Head",
+                title_font=dict(color="#1a3c5e", size=15),
+                yaxis=dict(showgrid=True, gridcolor="#e8ecef")
+            )
+            st.plotly_chart(fig_head, use_container_width=True)
+
+            # Summary table: total per Head
+            section_header("Total Outflow per Head", "📋")
+            head_summary = (
+                df_hist
+                .groupby("Head", as_index=False)["Outflow Amount"]
+                .sum()
+                .sort_values("Outflow Amount", ascending=False)
+                .rename(columns={"Outflow Amount": "Total Outflow (Cr)"})
+            )
+
+            col_left, col_right = st.columns(2)
+            with col_left:
+                st.dataframe(
+                    head_summary.style
+                    .format({"Total Outflow (Cr)": "{:.2f}"})
+                    .hide(axis="index"),
+                    use_container_width=True
+                )
+            with col_right:
+                fig_head_bar = go.Figure(go.Bar(
+                    x=head_summary["Total Outflow (Cr)"],
+                    y=head_summary["Head"],
+                    orientation="h",
+                    marker_color="#2980b9",
+                    text=head_summary["Total Outflow (Cr)"].apply(lambda x: f"₹ {x:.2f} Cr"),
+                    textposition="outside"
+                ))
+                fig_head_bar.update_layout(
+                    title=dict(
+                        text="Total Outflow by Head",
+                        font=dict(color="#1a3c5e", size=15)
+                    ),
+                    height=380,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis=dict(showgrid=True, gridcolor="#e8ecef")
+                )
+                st.plotly_chart(fig_head_bar, use_container_width=True)
+
+        # ==================
+        # TAB 4: VENDOR ANALYSIS
+        # ==================
+        with tab4:
+            section_header("Vendor-wise Outflow", "🏢")
+
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                # Top 10 vendors by total outflow
+                vendor_summary = (
+                    df_hist
+                    .groupby("Vendor", as_index=False)["Outflow Amount"]
+                    .sum()
+                    .sort_values("Outflow Amount", ascending=False)
+                    .head(10)
+                    .rename(columns={"Outflow Amount": "Total Outflow (Cr)"})
+                )
+
+                fig_vendor = go.Figure(go.Bar(
+                    x=vendor_summary["Total Outflow (Cr)"],
+                    y=vendor_summary["Vendor"],
+                    orientation="h",
+                    marker_color="#2980b9",
+                    text=vendor_summary["Total Outflow (Cr)"].apply(lambda x: f"₹ {x:.2f} Cr"),
+                    textposition="outside"
+                ))
+                fig_vendor.update_layout(
+                    title=dict(
+                        text="Top 10 Vendors by Outflow",
+                        font=dict(color="#1a3c5e", size=15)
+                    ),
+                    height=450,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis=dict(showgrid=True, gridcolor="#e8ecef"),
+                    yaxis=dict(autorange="reversed")
+                )
+                st.plotly_chart(fig_vendor, use_container_width=True)
+
+            with col_right:
+                # Settled vs Pending per vendor (top 10)
+                vendor_status = (
+                    df_hist[df_hist["Vendor"].isin(vendor_summary["Vendor"])]
+                    .groupby(["Vendor", "Settlement"], as_index=False)["Outflow Amount"]
+                    .sum()
+                )
+
+                fig_vendor_status = px.bar(
+                    vendor_status,
+                    x="Outflow Amount",
+                    y="Vendor",
+                    color="Settlement",
+                    orientation="h",
+                    barmode="stack",
+                    color_discrete_map={"Settled": "#27ae60", "Pending": "#c0392b"},
+                    labels={"Outflow Amount": "Amount (Cr)", "Vendor": ""},
+                    title="Settled vs Pending (Top 10 Vendors)"
+                )
+                fig_vendor_status.update_layout(
+                    height=450,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    legend_title="",
+                    title_font=dict(color="#1a3c5e", size=15),
+                    xaxis=dict(showgrid=True, gridcolor="#e8ecef"),
+                    yaxis=dict(autorange="reversed")
+                )
+                st.plotly_chart(fig_vendor_status, use_container_width=True)
+
+            # Vendor detail table
+            section_header("Vendor Detail Table", "📋")
+            vendor_detail = (
+                df_hist
+                .groupby(["Vendor", "Settlement"], as_index=False)["Outflow Amount"]
+                .sum()
+                .pivot_table(
+                    index="Vendor",
+                    columns="Settlement",
+                    values="Outflow Amount",
+                    aggfunc="sum"
+                ).reset_index()
+            )
+            vendor_detail.columns.name = None
+
+            for col in ["Settled", "Pending"]:
+                if col not in vendor_detail.columns:
+                    vendor_detail[col] = 0.0
+
+            vendor_detail["Settled"] = vendor_detail["Settled"].fillna(0)
+            vendor_detail["Pending"] = vendor_detail["Pending"].fillna(0)
+            vendor_detail["Total"] = vendor_detail["Settled"] + vendor_detail["Pending"]
+            vendor_detail = vendor_detail.sort_values("Total", ascending=False)
+
+            st.dataframe(
+                vendor_detail.style
+                .format({"Settled": "{:.2f}", "Pending": "{:.2f}", "Total": "{:.2f}"})
+                .hide(axis="index"),
+                use_container_width=True
+            )
