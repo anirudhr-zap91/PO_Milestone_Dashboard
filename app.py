@@ -158,7 +158,17 @@ with col2:
     st.metric(f"Planned New PO Requirement ({current_month_label})", f"₹ {total_planned:.2f} Cr")
 with col3:
     st.metric(f"Total Expected Outflow ({current_month_label})", f"₹ {total_expected:.2f} Cr")
-
+st.markdown("""
+<style>
+[data-testid="metric-container"] {
+    background-color: #f8f9fa;
+    border: 1px solid #e6e6e6;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0px 2px 6px rgba(0,0,0,0.08);
+}
+</style>
+""", unsafe_allow_html=True)
 # ==================================================
 # PLANNED REQUIREMENT TABLE (Category shown once, grouped)
 # ==================================================
