@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import gspread
 import json
 from google.oauth2.service_account import Credentials
@@ -20,6 +22,11 @@ st.markdown("""
              padding: 10px !important; text-align: left !important; }
         td { padding: 8px 10px !important; border-bottom: 1px solid #e8ecef; }
         tr:hover td { background-color: #f5f9fd; }
+        [data-testid="stSidebar"] {background-color: #1a3c5e;}
+        [data-testid="stSidebar"] * {color: white !important;}
+        [data-testid="stSidebar"] .stRadio label {
+            font-size: 1rem; padding: 8px 0; display: block;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -51,12 +58,10 @@ def section_header(title, icon=""):
 # GOOGLE AUTH
 # ==================================================
 creds_dict = json.loads(st.secrets["google_credentials"])
-
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets.readonly",
     "https://www.googleapis.com/auth/drive.readonly",
 ]
-
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 client = gspread.authorize(creds)
 
@@ -82,15 +87,12 @@ def parse_month(series):
     return parsed
 
 # ==================================================
-# SHEET 1 : PO LIST & PAYMENT SCHEDULE
+# LOAD SHEET 1 : PO LIST & PAYMENT SCHEDULE
 # ==================================================
 ws_po = spreadsheet.worksheet("PO List & Payment schedule")
 po_records = ws_po.get_all_values()
-
 po_headers = [str(c).strip() for c in po_records[1]]
-po_data = po_records[2:]
-
-df_po = pd.DataFrame(po_data, columns=po_headers)
+df_po = pd.DataFrame(po_records[2:], columns=po_headers)
 
 required_po_cols = [
     "Sr no.", "Package Description", "SPOC", "Vendor", "PO", "PO Date",
@@ -111,32 +113,19 @@ for col in ffill_cols:
     if col in df_po.columns:
         df_po[col] = df_po[col].replace("", pd.NA).ffill()
 
-df_po = df_po.replace("", pd.NA)
-df_po = df_po.dropna(how="all")
-
-df_po["Outflow Amount"] = clean_amount(df_po["Outflow Amount"])
-df_po["Value"] = clean_amount(df_po["Value"])
-
-df_po["Outflow Amount"] = df_po["Outflow Amount"] / 1e7
-df_po["Value"] = df_po["Value"] / 1e7
-
+df_po = df_po.replace("", pd.NA).dropna(how="all")
+df_po["Outflow Amount"] = clean_amount(df_po["Outflow Amount"]) / 1e7
+df_po["Value"] = clean_amount(df_po["Value"]) / 1e7
 df_po["Outflow_Month_Date"] = parse_month(df_po["Outflow Month"])
-
-df_po = df_po[
-    df_po["Outflow Amount"].notna()
-    & df_po["Outflow_Month_Date"].notna()
-]
+df_po = df_po[df_po["Outflow Amount"].notna() & df_po["Outflow_Month_Date"].notna()]
 
 # ==================================================
-# SHEET 2 : PO TO BE ISSUED
+# LOAD SHEET 2 : PO TO BE ISSUED
 # ==================================================
 ws_plan = spreadsheet.worksheet("PO to be issued")
 plan_records = ws_plan.get_all_values()
-
 plan_headers = [str(c).strip() for c in plan_records[1]]
-plan_data = plan_records[2:68]
-
-df_plan = pd.DataFrame(plan_data, columns=plan_headers)
+df_plan = pd.DataFrame(plan_records[2:68], columns=plan_headers)
 
 required_plan_cols = [
     "Category", "Sub-Category", "Estimates/back quotes value",
@@ -147,17 +136,11 @@ df_plan = df_plan[available_plan_cols]
 
 df_plan["Category"] = df_plan["Category"].replace("", pd.NA).ffill()
 df_plan["Sub-Category"] = df_plan["Sub-Category"].replace("", pd.NA).ffill()
-
 df_plan = df_plan[~df_plan["Category"].isin(["Subtotal", ""])]
 df_plan = df_plan[df_plan["Sub-Category"] != "Total"]
-
 df_plan["Amount"] = clean_amount(df_plan["Amount"])
 df_plan["Month_Date"] = parse_month(df_plan["Month Outflow"])
-
-df_plan = df_plan[
-    (df_plan["Amount"] > 0)
-    & (df_plan["Month_Date"].notna())
-]
+df_plan = df_plan[(df_plan["Amount"] > 0) & (df_plan["Month_Date"].notna())]
 
 # ==================================================
 # CURRENT MONTH
@@ -166,159 +149,207 @@ today = pd.Timestamp.today()
 current_month = pd.Timestamp(year=today.year, month=today.month, day=1)
 current_month_label = current_month.strftime("%B %Y")
 
-st.markdown(f"""
-    <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
-        📅 PO Requirement: {current_month_label}
-    </h2>
-""", unsafe_allow_html=True)
-
-# ==================================================
-# FILTER TO CURRENT MONTH
-# ==================================================
 plan_window = df_plan[df_plan["Month_Date"] == current_month].copy()
 po_window = df_po[df_po["Outflow_Month_Date"] == current_month].copy()
 
-# ==================================================
-# KPI CARDS
-# ==================================================
 total_planned = plan_window["Amount"].sum()
 total_actual = po_window["Outflow Amount"].sum()
 total_expected = total_planned + total_actual
 
-st.markdown(f"""
-    <div style="display: flex; gap: 20px; margin: 20px 0">
-        <div style="flex:1; background:#eaf4fb; border-left: 5px solid #2980b9;
-                    padding: 20px; border-radius: 8px">
-            <p style="margin:0; color:#555; font-size:0.85rem">Actual PO Outflow</p>
-            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_actual:.2f} Cr</h2>
-            <p style="margin:0; color:#888; font-size:0.8rem">{current_month_label}</p>
+# ==================================================
+# SIDEBAR NAVIGATION
+# ==================================================
+page = st.sidebar.radio(
+    "Navigate",
+    ["📊 Overview", "📋 This Month Detail", "📅 Upcoming Month", "📈 Historical Data"],
+    label_visibility="collapsed"
+)
+
+# ==================================================
+# PAGE 1: OVERVIEW
+# ==================================================
+if page == "📊 Overview":
+
+    st.markdown(f"""
+        <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
+            📅 Current Month: {current_month_label}
+        </h2>
+    """, unsafe_allow_html=True)
+
+    # ----------------------------------------------
+    # KPI CARDS
+    # ----------------------------------------------
+    st.markdown(f"""
+        <div style="display: flex; gap: 20px; margin: 20px 0">
+            <div style="flex:1; background:#eaf4fb; border-left: 5px solid #2980b9;
+                        padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                <p style="margin:0; color:#555; font-size:0.85rem">Actual PO Outflow</p>
+                <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_actual:.2f} Cr</h2>
+                <p style="margin:0; color:#888; font-size:0.8rem">Already committed & due {current_month_label}</p>
+            </div>
+            <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
+                        padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                <p style="margin:0; color:#555; font-size:0.85rem">Planned New PO Requirement</p>
+                <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_planned:.2f} Cr</h2>
+                <p style="margin:0; color:#888; font-size:0.8rem">New POs to be issued {current_month_label}</p>
+            </div>
+            <div style="flex:1; background:#eafaf1; border-left: 5px solid #27ae60;
+                        padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                <p style="margin:0; color:#555; font-size:0.85rem">Total Expected Outflow</p>
+                <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_expected:.2f} Cr</h2>
+                <p style="margin:0; color:#888; font-size:0.8rem">Actual + Planned combined</p>
+            </div>
         </div>
-        <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
-                    padding: 20px; border-radius: 8px">
-            <p style="margin:0; color:#555; font-size:0.85rem">Planned New PO Requirement</p>
-            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_planned:.2f} Cr</h2>
-            <p style="margin:0; color:#888; font-size:0.8rem">{current_month_label}</p>
-        </div>
-        <div style="flex:1; background:#eafaf1; border-left: 5px solid #27ae60;
-                    padding: 20px; border-radius: 8px">
-            <p style="margin:0; color:#555; font-size:0.85rem">Total Expected Outflow</p>
-            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_expected:.2f} Cr</h2>
-            <p style="margin:0; color:#888; font-size:0.8rem">{current_month_label}</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# ==================================================
-# PLANNED PO REQUIREMENT TABLE
-# ==================================================
-section_header("Planned PO Requirement", "📌")
+    # ----------------------------------------------
+    # CHARTS ROW 1: Donut + Bar side by side
+    # ----------------------------------------------
+    section_header("Outflow Breakdown", "📊")
+    chart_col1, chart_col2 = st.columns(2)
 
-plan_table = (
-    plan_window
-    .groupby(["Category", "Sub-Category"], as_index=False)["Amount"]
-    .sum()
-    .sort_values(["Category", "Sub-Category"])
-)
+    with chart_col1:
+        # Donut: actual outflow by Head
+        donut_data = (
+            po_window
+            .groupby("Head")["Outflow Amount"]
+            .sum()
+            .reset_index()
+        )
+        donut_data = donut_data[donut_data["Outflow Amount"] > 0]
 
-display_plan_table = plan_table.copy()
-display_plan_table["Category"] = display_plan_table["Category"].where(
-    display_plan_table["Category"] != display_plan_table["Category"].shift(), ""
-)
+        fig_donut = go.Figure(data=[go.Pie(
+            labels=donut_data["Head"],
+            values=donut_data["Outflow Amount"],
+            hole=0.5,
+            textinfo="label+percent",
+            hovertemplate="%{label}<br>₹ %{value:.2f} Cr<extra></extra>"
+        )])
+        fig_donut.update_layout(
+            title=dict(text="Actual Outflow by Head", font=dict(color="#1a3c5e", size=15)),
+            showlegend=True,
+            height=380,
+            margin=dict(t=50, b=20, l=20, r=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", y=-0.1)
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
 
-def style_plan_table(row):
-    if row["Category"] != "":
-        return ["font-weight: bold; background-color: #eaf4fb; color: #1a3c5e"] * len(row)
-    return [""] * len(row)
+    with chart_col2:
+        # Bar: planned requirement by Category
+        bar_data = (
+            plan_window
+            .groupby("Category")["Amount"]
+            .sum()
+            .reset_index()
+            .sort_values("Amount", ascending=True)
+        )
 
-styled_plan = (
-    display_plan_table.style
-    .apply(style_plan_table, axis=1)
-    .hide(axis="index")
-    .format({"Amount": "{:.2f}"})
-)
+        fig_bar = go.Figure(go.Bar(
+            x=bar_data["Amount"],
+            y=bar_data["Category"],
+            orientation="h",
+            marker_color="#2980b9",
+            text=bar_data["Amount"].apply(lambda x: f"₹ {x:.2f} Cr"),
+            textposition="outside",
+            hovertemplate="%{y}<br>₹ %{x:.2f} Cr<extra></extra>"
+        ))
+        fig_bar.update_layout(
+            title=dict(text="Planned Requirement by Category", font=dict(color="#1a3c5e", size=15)),
+            xaxis_title="Amount (Cr)",
+            height=380,
+            margin=dict(t=50, b=20, l=20, r=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=True, gridcolor="#e8ecef")
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-st.markdown(styled_plan.to_html(), unsafe_allow_html=True)
+    # ----------------------------------------------
+    # CHARTS ROW 2: Settlement status + Pipeline
+    # ----------------------------------------------
+    section_header("Payment & Pipeline Status", "🔍")
+    chart_col3, chart_col4 = st.columns(2)
 
-# ==================================================
-# ACTUAL PO OUTFLOW
-# ==================================================
-section_header("Actual PO Outflow by Sub-Head & Week", "💰")
+    with chart_col3:
+        # Bar: Settled vs Pending for current month
+        po_window["Settlement"] = po_window["Payment Status"].apply(
+            lambda x: "Settled" if str(x).strip() in ["Completed", "LC issued"] else "Pending"
+        )
 
-actual_breakdown = (
-    po_window
-    .groupby(["Sub Head", "Outflow Week"], as_index=False)["Outflow Amount"]
-    .sum()
-    .sort_values(["Sub Head", "Outflow Week"])
-)
-actual_breakdown["Outflow Week"] = actual_breakdown["Outflow Week"].replace("", "N/A")
+        settlement_data = (
+            po_window
+            .groupby(["Head", "Settlement"])["Outflow Amount"]
+            .sum()
+            .reset_index()
+        )
 
-st.dataframe(actual_breakdown, use_container_width=True, hide_index=True)
+        fig_settle = px.bar(
+            settlement_data,
+            x="Head",
+            y="Outflow Amount",
+            color="Settlement",
+            barmode="group",
+            color_discrete_map={"Settled": "#27ae60", "Pending": "#c0392b"},
+            labels={"Outflow Amount": "Amount (Cr)", "Head": ""},
+            title="Settled vs Pending by Head",
+            text_auto=".2f"
+        )
+        fig_settle.update_layout(
+            height=380,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend_title="",
+            title_font=dict(color="#1a3c5e", size=15),
+            yaxis=dict(showgrid=True, gridcolor="#e8ecef")
+        )
+        st.plotly_chart(fig_settle, use_container_width=True)
 
-# ==================================================
-# WEEKLY BREAKDOWN
-# ==================================================
-section_header("Weekly Outflow Breakdown", "📅")
+    with chart_col4:
+        # Pipeline: POs due this month — issued vs not issued
+        plan_due = df_plan[df_plan["Month_Date"] <= current_month].copy()
+        plan_due["__match_key"] = plan_due["Sub-Category"].str.strip().str.lower()
+        df_po["__match_key"] = df_po["Sub Head"].str.strip().str.lower()
+        issued_keys = set(df_po["__match_key"].dropna().unique())
+        plan_due["Status"] = plan_due["__match_key"].apply(
+            lambda k: "Issued" if k in issued_keys else "Not Issued"
+        )
 
-po_window["Settlement"] = po_window["Payment Status"].apply(
-    lambda x: "Settled" if str(x).strip() in ["Completed", "LC issued"] else "Pending"
-)
+        pipeline_summary = plan_due.groupby("Status")["Amount"].sum().reset_index()
 
-weekly = (
-    po_window
-    .groupby(["Outflow Week", "Sub Head", "Settlement"], as_index=False)["Outflow Amount"]
-    .sum()
-)
-weekly["Outflow Week"] = weekly["Outflow Week"].replace("", "N/A")
+        fig_pipeline = go.Figure(data=[go.Pie(
+            labels=pipeline_summary["Status"],
+            values=pipeline_summary["Amount"],
+            hole=0.5,
+            marker_colors=["#27ae60", "#c0392b"],
+            textinfo="label+percent",
+            hovertemplate="%{label}<br>₹ %{value:.2f} Cr<extra></extra>"
+        )])
+        fig_pipeline.update_layout(
+            title=dict(text="PO Issuance Pipeline (due by this month)", font=dict(color="#1a3c5e", size=15)),
+            height=380,
+            margin=dict(t=50, b=20, l=20, r=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", y=-0.1)
+        )
+        st.plotly_chart(fig_pipeline, use_container_width=True)
 
-weekly_totals = weekly.groupby(["Outflow Week", "Settlement"], as_index=False)["Outflow Amount"].sum()
-weekly_totals["Sub Head"] = "TOTAL"
-
-weekly["__order"] = 0
-weekly_totals["__order"] = 1
-
-weekly_combined = pd.concat([weekly, weekly_totals], ignore_index=True)
-weekly_combined = weekly_combined.sort_values(["Outflow Week", "__order", "Sub Head"])
-weekly_combined = weekly_combined.drop(columns="__order")
-
-weekly_pivot = weekly_combined.pivot_table(
-    index=["Outflow Week", "Sub Head"],
-    columns="Settlement",
-    values="Outflow Amount",
-    aggfunc="sum"
-).reset_index()
-
-weekly_pivot.columns.name = None
-weekly_pivot = weekly_pivot.rename_axis(None, axis=1)
-
-for col in ["Settled", "Pending"]:
-    if col not in weekly_pivot.columns:
-        weekly_pivot[col] = 0.0
-
-weekly_pivot["Settled"] = weekly_pivot["Settled"].fillna(0)
-weekly_pivot["Pending"] = weekly_pivot["Pending"].fillna(0)
-weekly_pivot["Total"] = weekly_pivot["Settled"] + weekly_pivot["Pending"]
-
-display_weekly = weekly_pivot.copy()
-display_weekly["Outflow Week"] = display_weekly["Outflow Week"].where(
-    display_weekly["Outflow Week"] != display_weekly["Outflow Week"].shift(), ""
-)
-
-def style_weekly(row):
-    is_total = row["Sub Head"] == "TOTAL"
-    base = "font-weight: bold; " if is_total else ""
-    return [
-        base,
-        base,
-        base + "color: #27ae60",
-        base + "color: #c0392b",
-        base
-    ]
-
-styled_weekly = (
-    display_weekly.style
-    .apply(style_weekly, axis=1)
-    .hide(axis="index")
-    .format({"Settled": "{:.2f}", "Pending": "{:.2f}", "Total": "{:.2f}"})
-)
-
-st.markdown(styled_weekly.to_html(), unsafe_allow_html=True)
+        # Alert if any not issued
+        not_issued = plan_due[plan_due["Status"] == "Not Issued"]
+        if not not_issued.empty:
+            st.markdown(f"""
+                <div style="background:#fdf2f2; border-left: 4px solid #c0392b;
+                            padding: 12px 16px; border-radius: 6px; margin-top: 10px">
+                    <strong style="color:#c0392b">⚠️ {len(not_issued)} PO(s) pending issuance</strong>
+                    <p style="margin: 4px 0 0 0; color:#555; font-size:0.85rem">
+                        ₹ {not_issued['Amount'].sum():.2f} Cr worth of planned POs have not been issued yet.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div style="background:#eafaf1; border-left: 4px solid #27ae60;
+                            padding: 12px 16px; border-radius: 6px; margin-top: 10px">
+                    <strong style="color:#27ae60">✅ All planned POs issued on time</strong>
+                </div>
+            """, unsafe_allow_html=True)
