@@ -655,9 +655,9 @@ elif page == "📅 Upcoming Month":
             </div>
             <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
                             padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
-                    <p style="margin:0; color:#555; font-size:0.85rem">Total Project Value (POs Issued)</p>
-                    <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_project_value:.2f} Cr</h2>
-                    <p style="margin:0; color:#888; font-size:0.8rem">Total contracted value across all POs</p>
+                    <p style="margin:0; color:#555; font-size:0.85rem">Total Expected Outflow</p>
+                    <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_expected_next:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">Actual + Planned combined</p>
                 </div>
             </div>
     """, unsafe_allow_html=True)
