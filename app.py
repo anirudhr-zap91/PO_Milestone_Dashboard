@@ -118,6 +118,7 @@ df_po["Outflow Amount"] = clean_amount(df_po["Outflow Amount"]) / 1e7
 df_po["Value"] = clean_amount(df_po["Value"]) / 1e7
 df_po["Outflow_Month_Date"] = parse_month(df_po["Outflow Month"])
 df_po = df_po[df_po["Outflow Amount"].notna() & df_po["Outflow_Month_Date"].notna()]
+total_project_value = df_po.drop_duplicates(subset=["PO"])["Value"].sum()
 
 # ==================================================
 # LOAD SHEET 2 : PO TO BE ISSUED
@@ -653,11 +654,11 @@ elif page == "📅 Upcoming Month":
                 <p style="margin:0; color:#888; font-size:0.8rem">New POs to be issued {next_month_label}</p>
             </div>
             <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
-                        padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
-            <p style="margin:0; color:#555; font-size:0.85rem">Total Project Value (POs Issued)</p>
-            <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_project_value:.2f} Cr</h2>
-            <p style="margin:0; color:#888; font-size:0.8rem">Total contracted value across all POs</p>
-            </div>
+                            padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                    <p style="margin:0; color:#555; font-size:0.85rem">Total Project Value (POs Issued)</p>
+                    <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_project_value:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">Total contracted value across all POs</p>
+                </div>
             </div>
     """, unsafe_allow_html=True)
 
