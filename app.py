@@ -987,7 +987,7 @@ elif page == "📈 Historical Data":
         total_settled_hist = df_hist[
             df_hist["Payment Status"].isin(["Completed", "LC issued"])
         ]["Outflow Amount"].sum()
-        total_remaining = total_hist - total_settled_hist
+        total_funds_required = total_project_value - total_settled_hist
 
         st.markdown(f"""
             <div style="display: flex; gap: 20px; margin: 20px 0">
@@ -1005,9 +1005,9 @@ elif page == "📈 Historical Data":
                 </div>
                 <div style="flex:1; background:#fdf2f2; border-left: 5px solid #c0392b;
                             padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
-                    <p style="margin:0; color:#555; font-size:0.85rem">Remaining to Settle</p>
-                    <h2 style="margin:5px 0; color:#c0392b">₹ {total_remaining:.2f} Cr</h2>
-                    <p style="margin:0; color:#888; font-size:0.8rem">From past months not yet settled</p>
+                    <p style="margin:0; color:#555; font-size:0.85rem">Funds Required to Complete Project</p>
+                    <h2 style="margin:5px 0; color:#c0392b">₹ {total_funds_required:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">Total Project Value − Settled So Far</p>
                 </div>
                 <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
                             padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
