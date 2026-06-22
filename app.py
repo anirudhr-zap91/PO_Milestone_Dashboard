@@ -987,7 +987,7 @@ elif page == "📈 Historical Data":
         total_settled_hist = df_hist[
             df_hist["Payment Status"].isin(["Completed", "LC issued"])
         ]["Outflow Amount"].sum()
-        total_pending_hist = total_hist - total_settled_hist
+        total_remaining = total_hist - total_settled_hist
 
         st.markdown(f"""
             <div style="display: flex; gap: 20px; margin: 20px 0">
@@ -1003,13 +1003,19 @@ elif page == "📈 Historical Data":
                     <h2 style="margin:5px 0; color:#27ae60">₹ {total_settled_hist:.2f} Cr</h2>
                     <p style="margin:0; color:#888; font-size:0.8rem">Completed + LC Issued</p>
                 </div>
+                <div style="flex:1; background:#fdf2f2; border-left: 5px solid #c0392b;
+                            padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                    <p style="margin:0; color:#555; font-size:0.85rem">Remaining to Settle</p>
+                    <h2 style="margin:5px 0; color:#c0392b">₹ {total_remaining:.2f} Cr</h2>
+                    <p style="margin:0; color:#888; font-size:0.8rem">From past months not yet settled</p>
+                </div>
                 <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
                             padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
                     <p style="margin:0; color:#555; font-size:0.85rem">Total Project Value (POs Issued)</p>
                     <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_project_value:.2f} Cr</h2>
                     <p style="margin:0; color:#888; font-size:0.8rem">Total contracted value across all POs</p>
                 </div>
-                </div>
+            </div>
         """, unsafe_allow_html=True)
 
         # ----------------------------------------------
