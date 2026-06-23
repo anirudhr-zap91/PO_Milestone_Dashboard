@@ -169,6 +169,10 @@ page = st.sidebar.radio(
 # ==================================================
 # PAGE 1: OVERVIEW
 # ==================================================
+st.write("Total Project Value (deduped by PO):", df_po.drop_duplicates(subset=["PO"])["Value"].sum())
+st.write("Total Project Value (deduped by PO + Sub Head):", df_po.drop_duplicates(subset=["PO", "Sub Head"])["Value"].sum())
+st.write("Total Project Value (raw sum):", df_po["Value"].sum())
+st.write("Sample PO-Value mapping:", df_po[["PO", "Sub Head", "Value"]].drop_duplicates().head(20))
 if page == "📊 Overview":
 
     st.markdown(f"""
