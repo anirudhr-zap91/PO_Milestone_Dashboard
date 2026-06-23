@@ -275,9 +275,11 @@ if page == "📊 Overview":
             orientation="h",
             color="Category",
             text=bar_data["Amount"].apply(lambda x: f"₹ {x:.2f} Cr"),
+        )
+        fig_bar.update_traces(
+            textposition="outside",
             hovertemplate="%{y}<br>₹ %{x:.2f} Cr<extra></extra>"
         )
-        fig_bar.update_traces(textposition="outside")
         fig_bar.update_layout(
             title=dict(text="Planned Requirement by Category", font=dict(color="#1a3c5e", size=15)),
             xaxis_title="Amount (Cr)",
