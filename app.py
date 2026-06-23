@@ -229,7 +229,7 @@ if page == "📊 Overview":
     # CHARTS ROW 1: Donut + Bar side by side
     # ----------------------------------------------
     # Shared color map for consistent colors across charts
-        all_categories = list(set(
+    all_categories = list(set(
             list(donut_data["Head"].unique()) + 
             list(bar_data["Category"].unique())
         ))
