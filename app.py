@@ -233,8 +233,8 @@ if page == "📊 Overview":
             list(donut_data["Head"].unique()) + 
             list(bar_data["Category"].unique())
         ))
-        plotly_colors = px.colors.qualitative.Plotly
-        color_map = {cat: plotly_colors[i % len(plotly_colors)] for i, cat in enumerate(sorted(all_categories))}
+    plotly_colors = px.colors.qualitative.Plotly
+    color_map = {cat: plotly_colors[i % len(plotly_colors)] for i, cat in enumerate(sorted(all_categories))}
     section_header("Outflow Breakdown", "📊")
     chart_col1, chart_col2 = st.columns(2)
 
