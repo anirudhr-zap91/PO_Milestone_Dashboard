@@ -194,11 +194,7 @@ if page == "📊 Overview":
             📅 Current Month: {current_month_label}
         </h2>
     """, unsafe_allow_html=True)
-    st.markdown(f"""
-        <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
-            📅 Current Month: {current_month_label}
-        </h2>
-    """, unsafe_allow_html=True)
+    
 
     # ----------------------------------------------
     # KPI CARDS
