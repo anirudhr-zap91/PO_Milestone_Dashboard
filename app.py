@@ -268,15 +268,16 @@ if page == "📊 Overview":
             .sort_values("Amount", ascending=True)
         )
 
-        fig_bar = go.Figure(go.Bar(
-            x=bar_data["Amount"],
-            y=bar_data["Category"],
+       fig_bar = px.bar(
+            bar_data,
+            x="Amount",
+            y="Category",
             orientation="h",
-            marker_color="#2980b9",
+            color="Category",
             text=bar_data["Amount"].apply(lambda x: f"₹ {x:.2f} Cr"),
-            textposition="outside",
             hovertemplate="%{y}<br>₹ %{x:.2f} Cr<extra></extra>"
-        ))
+        )
+        fig_bar.update_traces(textposition="outside")
         fig_bar.update_layout(
             title=dict(text="Planned Requirement by Category", font=dict(color="#1a3c5e", size=15)),
             xaxis_title="Amount (Cr)",
@@ -284,7 +285,8 @@ if page == "📊 Overview":
             margin=dict(t=50, b=20, l=20, r=20),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(showgrid=True, gridcolor="#e8ecef")
+            xaxis=dict(showgrid=True, gridcolor="#e8ecef"),
+            showlegend=False
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
