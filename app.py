@@ -170,7 +170,30 @@ page = st.sidebar.radio(
 # PAGE 1: OVERVIEW
 # ==================================================
 if page == "📊 Overview":
+    total_pos = df_po["PO"].nunique()
 
+    st.markdown(f"""
+        <div style="display: flex; gap: 20px; margin: 20px 0">
+            <div style="flex:1; background:#eaf4fb; border-left: 5px solid #2980b9;
+                        padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                <p style="margin:0; color:#555; font-size:0.85rem">Total POs Issued</p>
+                <h2 style="margin:5px 0; color:#1a3c5e">{total_pos}</h2>
+                <p style="margin:0; color:#888; font-size:0.8rem">Across all months</p>
+            </div>
+            <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
+                        padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+                <p style="margin:0; color:#555; font-size:0.85rem">Total Project Value</p>
+                <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_project_value:.2f} Cr</h2>
+                <p style="margin:0; color:#888; font-size:0.8rem">Total contracted value across all POs</p>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+        <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
+            📅 Current Month: {current_month_label}
+        </h2>
+    """, unsafe_allow_html=True)
     st.markdown(f"""
         <h2 style="color:#1a3c5e; margin: 10px 0 20px 0">
             📅 Current Month: {current_month_label}
