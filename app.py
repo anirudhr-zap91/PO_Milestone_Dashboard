@@ -268,7 +268,7 @@ if page == "📊 Overview":
             .sort_values("Amount", ascending=True)
         )
 
-       fig_bar = px.bar(
+        fig_bar = px.bar(
             bar_data,
             x="Amount",
             y="Category",
