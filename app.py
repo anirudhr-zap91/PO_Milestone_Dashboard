@@ -228,6 +228,13 @@ if page == "📊 Overview":
     # ----------------------------------------------
     # CHARTS ROW 1: Donut + Bar side by side
     # ----------------------------------------------
+    # Shared color map for consistent colors across charts
+        all_categories = list(set(
+            list(donut_data["Head"].unique()) + 
+            list(bar_data["Category"].unique())
+        ))
+        plotly_colors = px.colors.qualitative.Plotly
+        color_map = {cat: plotly_colors[i % len(plotly_colors)] for i, cat in enumerate(sorted(all_categories))}
     section_header("Outflow Breakdown", "📊")
     chart_col1, chart_col2 = st.columns(2)
 
@@ -246,6 +253,7 @@ if page == "📊 Overview":
             values=donut_data["Outflow Amount"],
             hole=0.5,
             textinfo="label+percent",
+            marker=dict(colors=[color_map.get(h, "#999") for h in donut_data["Head"]]),
             hovertemplate="%{label}<br>₹ %{value:.2f} Cr<extra></extra>"
         )])
         fig_donut.update_layout(
@@ -274,6 +282,7 @@ if page == "📊 Overview":
             y="Category",
             orientation="h",
             color="Category",
+            color_discrete_map=color_map,
             text=bar_data["Amount"].apply(lambda x: f"₹ {x:.2f} Cr"),
         )
         fig_bar.update_traces(
