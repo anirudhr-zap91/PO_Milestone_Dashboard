@@ -228,15 +228,16 @@ if page == "📊 Overview":
     # ----------------------------------------------
     # CHARTS ROW 1: Donut + Bar side by side
     # ----------------------------------------------
-    # Shared color map for consistent colors across charts
-    all_categories = list(set(
-            list(donut_data["Head"].unique()) + 
-            list(bar_data["Category"].unique())
-        ))
-    plotly_colors = px.colors.qualitative.Plotly
-    color_map = {cat: plotly_colors[i % len(plotly_colors)] for i, cat in enumerate(sorted(all_categories))}
+    
     section_header("Outflow Breakdown", "📊")
     chart_col1, chart_col2 = st.columns(2)
+    # Shared color map using all possible heads/categories
+    all_categories = sorted(list(set(
+        list(df_po["Head"].dropna().unique()) +
+        list(df_plan["Category"].dropna().unique())
+    )))
+    plotly_colors = px.colors.qualitative.Plotly
+    color_map = {cat: plotly_colors[i % len(plotly_colors)] for i, cat in enumerate(all_categories)}
 
     with chart_col1:
         # Donut: actual outflow by Head
