@@ -156,6 +156,9 @@ po_window = df_po[df_po["Outflow_Month_Date"] == current_month].copy()
 total_planned = plan_window["Amount"].sum()
 total_actual = po_window["Outflow Amount"].sum()
 total_expected = total_planned + total_actual
+total_settled_current = po_window[
+        po_window["Payment Status"].isin(["Completed", "LC issued"])
+    ]["Outflow Amount"].sum()
 
 # ==================================================
 # SIDEBAR NAVIGATION
@@ -215,9 +218,9 @@ if page == "📊 Overview":
             </div>
             <div style="flex:1; background:#eafaf1; border-left: 5px solid #27ae60;
                         padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
-                <p style="margin:0; color:#555; font-size:0.85rem">Total Expected Outflow</p>
-                <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_expected:.2f} Cr</h2>
-                <p style="margin:0; color:#888; font-size:0.8rem">Actual + Planned combined</p>
+                <p style="margin:0; color:#555; font-size:0.85rem">Amount Settled This Month</p>
+                <h2 style="margin:5px 0; color:#27ae60">₹ {total_settled_current:.2f} Cr</h2>
+                <p style="margin:0; color:#888; font-size:0.8rem">Completed + LC Issued ({current_month_label})</p>
             </div>
         </div>
     """, unsafe_allow_html=True)
