@@ -203,13 +203,13 @@ if page == "📊 Overview":
         <div style="display: flex; gap: 20px; margin: 20px 0">
             <div style="flex:1; background:#eaf4fb; border-left: 5px solid #2980b9;
                         padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
-                <p style="margin:0; color:#555; font-size:0.85rem">Actual PO Outflow</p>
+                <p style="margin:0; color:#555; font-size:0.85rem"> Cash outflow for issued POs</p>
                 <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_actual:.2f} Cr</h2>
                 <p style="margin:0; color:#888; font-size:0.8rem">Already committed & due {current_month_label}</p>
             </div>
             <div style="flex:1; background:#fef9e7; border-left: 5px solid #f39c12;
                         padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
-                <p style="margin:0; color:#555; font-size:0.85rem">Planned New PO Requirement</p>
+                <p style="margin:0; color:#555; font-size:0.85rem">Expected POs to be issued </p>
                 <h2 style="margin:5px 0; color:#1a3c5e">₹ {total_planned:.2f} Cr</h2>
                 <p style="margin:0; color:#888; font-size:0.8rem">New POs to be issued {current_month_label}</p>
             </div>
